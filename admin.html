@@ -65,8 +65,9 @@
       { key: "resultados", label: "Resultados", icon: "✅" },
       { key: "fixture", label: "Fixture", icon: "📅" },
       { key: "goleo", label: "Goles", icon: "🎯" },
+      { key: "jugadoras", label: "Plantel", icon: "🪪" },
       { key: "noticias", label: "Noticias", icon: "📰" },
-      { key: "config", label: "Puntos", icon: "🔧" },
+      { key: "config", label: "Config", icon: "🔧" },
     ];
 
     const C = { ink: "#12203B", paper: "#F6F3EC", coral: "#E84C3D", gold: "#F2B705", teal: "#1B6B6B", line: "#E5E1D6", muted: "#6B7280" };
@@ -234,6 +235,66 @@
       );
     }
 
+    function VistaJugadoras({ jugadoras, equipos }) {
+      const [busqueda, setBusqueda] = useState("");
+      const [equipoFiltro, setEquipoFiltro] = useState("");
+
+      const resultados = jugadoras.filter((j) => {
+        const matchTexto = !busqueda || 
+          (j.Nombre || "").toLowerCase().includes(busqueda.toLowerCase()) ||
+          (j.DNI || "").replace(/\./g, "").includes(busqueda.replace(/\./g, ""));
+        const matchEquipo = !equipoFiltro || (j.ID_Equipo || "").toLowerCase() === equipoFiltro.toLowerCase();
+        return matchTexto && matchEquipo;
+      });
+
+      const nombreEquipo = (id) => equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (id || "").toLowerCase())?.Nombre || id;
+
+      return (
+        <div className="px-4 pb-6">
+          <p className="text-xs mb-3" style={{ fontFamily: F_BODY, color: C.muted }}>
+            Consultá DNI y fecha de nacimiento para verificar identidad antes del partido.
+          </p>
+          <Campo label="Buscar por nombre o DNI">
+            <input style={estiloInput} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre o número de DNI..." />
+          </Campo>
+          <Campo label="Filtrar por equipo">
+            <select style={estiloInput} value={equipoFiltro} onChange={(e) => setEquipoFiltro(e.target.value)}>
+              <option value="">Todos los equipos</option>
+              {equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}
+            </select>
+          </Campo>
+
+          <div className="text-xs mb-2" style={{ fontFamily: F_BODY, color: C.muted }}>
+            {resultados.length} jugadora{resultados.length !== 1 ? "s" : ""}
+          </div>
+
+          <div className="space-y-2" style={{ maxHeight: 400, overflowY: "auto" }}>
+            {resultados.map((j) => (
+              <div key={j.ID_Jugadora} className="rounded-xl px-4 py-3" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium" style={{ fontFamily: F_BODY, color: C.ink }}>{j.Nombre}</span>
+                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#F0F0F0", color: C.muted, fontFamily: F_BODY }}>#{j.Dorsal}</span>
+                </div>
+                <div className="text-xs" style={{ fontFamily: F_BODY, color: C.muted }}>
+                  {nombreEquipo(j.ID_Equipo)}
+                </div>
+                <div className="flex gap-4 mt-1.5">
+                  <div className="text-xs" style={{ fontFamily: F_BODY }}>
+                    <span style={{ color: C.muted }}>DNI: </span>
+                    <span style={{ color: C.ink, fontWeight: 600 }}>{j.DNI || "—"}</span>
+                  </div>
+                  <div className="text-xs" style={{ fontFamily: F_BODY }}>
+                    <span style={{ color: C.muted }}>Nac: </span>
+                    <span style={{ color: C.ink, fontWeight: 600 }}>{j.Fecha_Nacimiento ? String(j.Fecha_Nacimiento).slice(0, 10) : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     function VistaConfig({ config, onGuardar, cargando }) {
       const [puntosVictoria, setPuntosVictoria] = useState(config.puntosVictoria ?? 2);
       const [puntosEmpate, setPuntosEmpate] = useState(config.puntosEmpate ?? 1);
@@ -356,6 +417,7 @@
               {tab === "resultados" && <VistaResultados partidos={partidos} equipos={equipos} jugadoras={jugadoras} cargando={cargando} onGuardar={(p, cb) => guardar("cargarResultado", p, cb)} />}
               {tab === "fixture" && <VistaFixture equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarPartido", p, cb)} />}
               {tab === "goleo" && <VistaGoleo partidos={partidos} jugadoras={jugadoras} equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarGol", p, cb)} />}
+              {tab === "jugadoras" && <VistaJugadoras jugadoras={jugadoras} equipos={equipos} />}
               {tab === "noticias" && <VistaNoticias cargando={cargando} onGuardar={(p, cb) => guardar("agregarNoticia", p, cb)} />}
               {tab === "config" && <VistaConfig config={config} cargando={cargando} onGuardar={(p) => guardar("actualizarConfig", p, () => setConfig(p))} />}
             </div>

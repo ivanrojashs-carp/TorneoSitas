@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Liga Femenina de Handball</title>
-
-  <!-- Instalabilidad -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#12203B" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -13,19 +11,12 @@
   <meta name="apple-mobile-web-app-title" content="Liga Handball" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-
-  <!-- Tipografías -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-
-  <!-- Tailwind (CDN "play", sin build step) -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- React sin bundler -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-
   <style>
     body { margin: 0; background: #E5E1D6; }
     @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
@@ -34,39 +25,11 @@
 </head>
 <body>
   <div id="root"></div>
-
-  <!--
-    CONFIGURACIÓN: pegá acá la URL de tu Apps Script (la que termina en /exec).
-    Esto es lo único que tenés que tocar para conectar la app a tu Sheet real.
-  -->
   <script>
     window.API_URL = "https://script.google.com/macros/s/AKfycbwFvGQE_0iP9sqWwq0OV63VwuZzs7w0JKpz-MiJVlQIiUre3bN30Mx6waMeK1ssKuiS/exec";
   </script>
-
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo } = React;
-
-    // -----------------------------------------------------------------
-    // DATOS DE RESPALDO — se muestran si todavía no pegaste la URL del
-    // Apps Script, o si por algún motivo falla la conexión a internet.
-    // -----------------------------------------------------------------
-    const EQUIPOS_DEMO = [
-      { ID_Equipo: "E01", Nombre: "Las Águilas", Color: "#E84C3D" },
-      { ID_Equipo: "E02", Nombre: "Cóndor HC", Color: "#F2B705" },
-      { ID_Equipo: "E03", Nombre: "Tormenta Sur", Color: "#1B6B6B" },
-      { ID_Equipo: "E04", Nombre: "Vendaval", Color: "#7B5EA7" },
-    ];
-    const PARTIDOS_DEMO = [
-      { ID_Partido: "P01", Jornada: 1, Fecha: "2026-06-06", Hora: "18:00", Cancha: "Cancha 1", ID_EquipoLocal: "E01", ID_EquipoVisitante: "E02", Jugado: "SI", GolesLocal: 24, GolesVisitante: 19 },
-      { ID_Partido: "P02", Jornada: 1, Fecha: "2026-06-06", Hora: "19:30", Cancha: "Cancha 2", ID_EquipoLocal: "E03", ID_EquipoVisitante: "E04", Jugado: "NO", GolesLocal: "", GolesVisitante: "" },
-    ];
-    const GOLEADORAS_DEMO = [
-      { Nombre: "Camila Ríos", Equipo: "Las Águilas", Goles_Totales: 19 },
-      { Nombre: "Sol Medina", Equipo: "Tormenta Sur", Goles_Totales: 22 },
-    ];
-    const NOTICIAS_DEMO = [
-      { ID_Noticia: "N1", Fecha: "2026-06-28", Titulo: "Conectá tu Sheet para ver noticias reales", Texto: "Esta es una noticia de ejemplo. Pegá la URL de tu Apps Script en el archivo index.html para traer datos reales." },
-    ];
 
     const TABS = [
       { key: "tabla", label: "Tabla", icon: "🏆" },
@@ -80,67 +43,54 @@
     const F_BODY = "Inter, sans-serif";
     const F_MONO = "'JetBrains Mono', monospace";
 
-    function equipoPorId(equipos, id) {
-      return equipos.find((e) => e.ID_Equipo === id) || { Nombre: id, Color: "#9CA3AF" };
-    }
+    // Colores temáticos para zonas y ligas
+    const TEMA = {
+      Verde:  { bg: "#166534", bgLight: "#dcfce7", accent: "#16a34a", label: "ZONA VERDE", icon: "🟢" },
+      Roja:   { bg: "#991b1b", bgLight: "#fee2e2", accent: "#dc2626", label: "ZONA ROJA", icon: "🔴" },
+      Oro:    { bg: "#92400e", bgLight: "#fef3c7", accent: "#d97706", label: "LIGA ORO", icon: "🥇" },
+      Plata:  { bg: "#475569", bgLight: "#f1f5f9", accent: "#64748b", label: "LIGA PLATA", icon: "🥈" },
+    };
 
-    // -----------------------------------------------------------------
-    // Hook que trae todo de la API en un solo pedido (?recurso=todo)
-    // y si falla, usa los datos demo de arriba.
-    // -----------------------------------------------------------------
-    // JSONP: cargamos la respuesta como una etiqueta <script> en vez de
-    // usar fetch(). Los Web Apps de Google Apps Script no siempre mandan
-    // las cabeceras CORS que fetch() necesita para leer la respuesta —
-    // con JSONP ese problema no existe, porque los navegadores nunca
-    // bloquean por CORS la carga de un <script>.
+    // ---- JSONP ----
     function jsonp(url) {
       return new Promise((resolve, reject) => {
-        const nombreCallback = "cb_" + Math.random().toString(36).slice(2);
-        const script = document.createElement("script");
-        window[nombreCallback] = (datos) => {
-          resolve(datos);
-          delete window[nombreCallback];
-          script.remove();
-        };
-        script.onerror = () => {
-          reject(new Error("No se pudo conectar con la API"));
-          delete window[nombreCallback];
-          script.remove();
-        };
-        const separador = url.includes("?") ? "&" : "?";
-        script.src = url + separador + "callback=" + nombreCallback + "&_ts=" + Date.now();
-        document.body.appendChild(script);
+        const cb = "cb_" + Math.random().toString(36).slice(2);
+        const s = document.createElement("script");
+        window[cb] = (d) => { resolve(d); delete window[cb]; s.remove(); };
+        s.onerror = () => { reject(new Error("API error")); delete window[cb]; s.remove(); };
+        const sep = url.includes("?") ? "&" : "?";
+        s.src = url + sep + "callback=" + cb + "&_ts=" + Date.now();
+        document.body.appendChild(s);
       });
     }
 
-    function useDatosTorneo() {
-      const [estado, setEstado] = useState({
-        cargando: true, error: false, modoDemo: false,
-        equipos: EQUIPOS_DEMO, partidos: PARTIDOS_DEMO,
-        goleadoras: GOLEADORAS_DEMO, noticias: NOTICIAS_DEMO,
-      });
+    function fechaCorta(f) { return f ? String(f).slice(0, 10) : ""; }
 
+    function equipoPorId(equipos, id) {
+      return equipos.find((e) => e.ID_Equipo === id) || { Nombre: id, Zona: "" };
+    }
+
+    // ---- HOOK DE DATOS ----
+    function useDatosTorneo() {
+      const [estado, setEstado] = useState({ cargando: true, modoDemo: false, equipos: [], jugadoras: [], partidos: [], goleadoras: [], noticias: [], config: {} });
       useEffect(() => {
         const url = window.API_URL;
-        if (!url || url.includes("PEGAR_AQUI")) {
-          setEstado((e) => ({ ...e, cargando: false, modoDemo: true }));
-          return;
-        }
+        if (!url || url.includes("PEGAR_AQUI")) { setEstado((e) => ({ ...e, cargando: false, modoDemo: true })); return; }
         jsonp(`${url}?recurso=todo`)
-          .then((data) => setEstado({
-            cargando: false, error: false, modoDemo: false,
-            equipos: data.equipos, partidos: data.partidos,
-            goleadoras: data.goleadoras, noticias: data.noticias,
-          }))
-          .catch(() => setEstado((e) => ({ ...e, cargando: false, error: true, modoDemo: true })));
+          .then((d) => {
+            const cfg = {};
+            (d.configuracion || []).forEach((c) => { cfg[c.Clave] = c.Valor; });
+            setEstado({ cargando: false, modoDemo: false, equipos: d.equipos || [], jugadoras: d.jugadoras || [], partidos: d.partidos || [], goleadoras: d.goleadoras || [], noticias: d.noticias || [], config: cfg });
+          })
+          .catch(() => setEstado((e) => ({ ...e, cargando: false, modoDemo: true })));
       }, []);
-
       return estado;
     }
 
-    function calcularPosiciones(equipos, partidos) {
-      return equipos.map((eq) => {
-        const propios = partidos.filter((p) => p.Jugado === "SI" && (p.ID_EquipoLocal === eq.ID_Equipo || p.ID_EquipoVisitante === eq.ID_Equipo));
+    // ---- CÁLCULO DE POSICIONES (client-side) ----
+    function calcularPosiciones(equiposFiltrados, partidosFiltrados) {
+      return equiposFiltrados.map((eq) => {
+        const propios = partidosFiltrados.filter((p) => p.Jugado === "SI" && (p.ID_EquipoLocal === eq.ID_Equipo || p.ID_EquipoVisitante === eq.ID_Equipo));
         let pg = 0, pe = 0, pp = 0, gf = 0, gc = 0;
         const forma = [];
         propios.slice().sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha)).forEach((p) => {
@@ -157,35 +107,19 @@
       }).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf);
     }
 
-    function Marcador({ partido, equipos }) {
-      const local = equipoPorId(equipos, partido.ID_EquipoLocal);
-      const visitante = equipoPorId(equipos, partido.ID_EquipoVisitante);
+    // ---- COMPONENTE: TABLA DE UN GRUPO ----
+    function TablaGrupo({ titulo, tema, posiciones }) {
+      const t = TEMA[tema] || TEMA.Verde;
       return (
-        <div className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#0E1A30", border: "1px solid rgba(242,183,5,0.25)" }}>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: C.coral }}></span>
-              <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: C.coral }}></span>
-            </span>
-            <span className="text-xs tracking-widest uppercase" style={{ color: C.gold, fontFamily: F_BODY }}>En vivo</span>
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span>{t.icon}</span>
+            <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style={{ background: t.bg, color: "#FFF", fontFamily: F_BODY }}>{t.label}</span>
           </div>
-          <div className="flex items-center gap-3" style={{ fontFamily: F_MONO }}>
-            <span className="text-sm" style={{ color: C.paper }}>{local.Nombre}</span>
-            <span className="text-2xl font-bold" style={{ color: C.paper }}>{partido.GolesLocal} – {partido.GolesVisitante}</span>
-            <span className="text-sm" style={{ color: C.paper }}>{visitante.Nombre}</span>
-          </div>
-        </div>
-      );
-    }
-
-    function VistaTabla({ equipos, partidos }) {
-      const posiciones = useMemo(() => calcularPosiciones(equipos, partidos), [equipos, partidos]);
-      return (
-        <div className="px-4 pb-6">
           <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.line}` }}>
             <table className="w-full text-sm" style={{ fontFamily: F_MONO }}>
               <thead>
-                <tr style={{ background: C.ink, color: C.paper }}>
+                <tr style={{ background: t.bg, color: "#FFF" }}>
                   <th className="text-left py-2 px-2 font-normal" style={{ fontFamily: F_BODY }}>Equipo</th>
                   <th className="px-2">PJ</th><th className="px-2">PG</th><th className="px-2">PE</th>
                   <th className="px-2">PP</th><th className="px-2">DG</th><th className="px-2">Pts</th>
@@ -194,17 +128,14 @@
               </thead>
               <tbody>
                 {posiciones.map((eq, i) => (
-                  <tr key={eq.ID_Equipo} style={{ background: i % 2 === 0 ? "#FFF" : C.paper, borderTop: `1px solid ${C.line}` }}>
-                    <td className="py-2 px-2 flex items-center gap-2" style={{ fontFamily: F_BODY, color: C.ink }}>
-                      <span className="inline-block w-1.5 h-5 rounded-sm" style={{ background: eq.Color }} />
-                      <span className="font-medium">{eq.Nombre}</span>
-                    </td>
+                  <tr key={eq.ID_Equipo} style={{ background: i % 2 === 0 ? "#FFF" : t.bgLight, borderTop: `1px solid ${C.line}` }}>
+                    <td className="py-2 px-2 font-medium" style={{ fontFamily: F_BODY, color: C.ink }}>{eq.Nombre}</td>
                     <td className="text-center px-2" style={{ color: C.ink }}>{eq.pj}</td>
                     <td className="text-center px-2" style={{ color: C.ink }}>{eq.pg}</td>
                     <td className="text-center px-2" style={{ color: C.ink }}>{eq.pe}</td>
                     <td className="text-center px-2" style={{ color: C.ink }}>{eq.pp}</td>
                     <td className="text-center px-2" style={{ color: C.ink }}>{eq.dg > 0 ? `+${eq.dg}` : eq.dg}</td>
-                    <td className="text-center px-2 font-bold" style={{ color: C.coral }}>{eq.pts}</td>
+                    <td className="text-center px-2 font-bold" style={{ color: t.accent }}>{eq.pts}</td>
                     <td className="px-2"><div className="flex gap-1">
                       {eq.racha.length === 0 && <span style={{ color: "#9CA3AF" }}>—</span>}
                       {eq.racha.map((r, idx) => (
@@ -217,8 +148,56 @@
               </tbody>
             </table>
           </div>
+        </div>
+      );
+    }
+
+    // ---- VISTA: TABLA CON FASES ----
+    function VistaTabla({ equipos, partidos, config }) {
+      const etapaActual = Number(config.EtapaActual) || 1;
+      const partidosFase1 = partidos.filter((p) => String(p.Etapa) === "1");
+      const partidosFase2 = partidos.filter((p) => String(p.Etapa) === "2");
+
+      const equiposVerdes = equipos.filter((e) => e.Zona === "Verde");
+      const equiposRojos = equipos.filter((e) => e.Zona === "Roja");
+      const posVerdes = useMemo(() => calcularPosiciones(equiposVerdes, partidosFase1), [equipos, partidos]);
+      const posRojos = useMemo(() => calcularPosiciones(equiposRojos, partidosFase1), [equipos, partidos]);
+
+      const equiposOro = equipos.filter((e) => e.Liga === "Oro");
+      const equiposPlata = equipos.filter((e) => e.Liga === "Plata");
+      const posOro = useMemo(() => calcularPosiciones(equiposOro, partidosFase2), [equipos, partidos]);
+      const posPlata = useMemo(() => calcularPosiciones(equiposPlata, partidosFase2), [equipos, partidos]);
+
+      const hayFase2 = etapaActual >= 2 && (equiposOro.length > 0 || equiposPlata.length > 0);
+
+      return (
+        <div className="px-4 pb-6">
+          {/* Fase 2 arriba si está activa */}
+          {hayFase2 && (
+            <div className="mb-4">
+              <div className="text-center mb-3">
+                <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>
+                  Fase 2 — Ligas
+                </span>
+              </div>
+              {equiposOro.length > 0 && <TablaGrupo titulo="Liga Oro" tema="Oro" posiciones={posOro} />}
+              {equiposPlata.length > 0 && <TablaGrupo titulo="Liga Plata" tema="Plata" posiciones={posPlata} />}
+            </div>
+          )}
+
+          {/* Fase 1 siempre visible */}
+          <div>
+            <div className="text-center mb-3">
+              <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: etapaActual >= 2 ? C.muted : C.ink, color: etapaActual >= 2 ? "#FFF" : C.gold, fontFamily: F_BODY }}>
+                {etapaActual >= 2 ? "Fase 1 — Finalizada" : "Fase 1 — Zonas"}
+              </span>
+            </div>
+            {equiposVerdes.length > 0 && <TablaGrupo titulo="Zona Verde" tema="Verde" posiciones={posVerdes} />}
+            {equiposRojos.length > 0 && <TablaGrupo titulo="Zona Roja" tema="Roja" posiciones={posRojos} />}
+          </div>
+
           <p className="text-xs mt-3 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>
-            <strong>Forma</strong>: resultado de los últimos 5 partidos de cada equipo, el más reciente a la izquierda —
+            <strong>Forma</strong>: últimos 5 partidos —
             <span style={{ color: "#2E8B57", fontWeight: 600 }}> G</span> ganado,
             <span style={{ color: C.gold, fontWeight: 600 }}> E</span> empate,
             <span style={{ color: "#A8324A", fontWeight: 600 }}> P</span> perdido.
@@ -227,48 +206,69 @@
       );
     }
 
-    function VistaFixture({ equipos, partidos }) {
-      const jornadas = [...new Set(partidos.map((p) => p.Jornada))].sort((a, b) => a - b);
+    // ---- VISTA: FIXTURE ----
+    function VistaFixture({ equipos, partidos, config }) {
+      const etapaActual = Number(config.EtapaActual) || 1;
+      const [etapaVista, setEtapaVista] = useState(etapaActual);
+      const partidosEtapa = partidos.filter((p) => String(p.Etapa) === String(etapaVista));
+      const jornadas = [...new Set(partidosEtapa.map((p) => p.Jornada))].sort((a, b) => a - b);
+
       return (
-        <div className="px-4 pb-6 space-y-6">
-          {jornadas.map((j) => (
-            <div key={j}>
-              <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>Fecha {j}</span>
-              <div className="space-y-2">
-                {partidos.filter((p) => p.Jornada === j).map((p) => {
-                  const local = equipoPorId(equipos, p.ID_EquipoLocal);
-                  const visitante = equipoPorId(equipos, p.ID_EquipoVisitante);
-                  return (
-                    <div key={p.ID_Partido} className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
-                      <div style={{ fontFamily: F_BODY }}>
-                        <div className="text-sm font-medium" style={{ color: C.ink }}>{local.Nombre} vs {visitante.Nombre}</div>
-                        <div className="text-xs" style={{ color: C.muted }}>{p.Cancha} · {p.Hora}</div>
+        <div className="px-4 pb-6">
+          {/* Selector de etapa */}
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setEtapaVista(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
+              Fase 1 — Zonas
+            </button>
+            {etapaActual >= 2 && (
+              <button onClick={() => setEtapaVista(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
+                Fase 2 — Ligas
+              </button>
+            )}
+          </div>
+
+          {jornadas.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos cargados en esta fase.</p>}
+
+          <div className="space-y-6">
+            {jornadas.map((j) => (
+              <div key={j}>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>Fecha {j}</span>
+                <div className="space-y-2">
+                  {partidosEtapa.filter((p) => p.Jornada === j).map((p) => {
+                    const local = equipoPorId(equipos, p.ID_EquipoLocal);
+                    const visitante = equipoPorId(equipos, p.ID_EquipoVisitante);
+                    return (
+                      <div key={p.ID_Partido} className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
+                        <div style={{ fontFamily: F_BODY }}>
+                          <div className="text-sm font-medium" style={{ color: C.ink }}>{local.Nombre} vs {visitante.Nombre}</div>
+                          <div className="text-xs" style={{ color: C.muted }}>{p.Cancha} · {p.Hora} · {fechaCorta(p.Fecha)}</div>
+                        </div>
+                        {p.Jugado === "SI" ? (
+                          <span className="text-lg font-bold" style={{ fontFamily: F_MONO }}>
+                            <span style={{ color: p.GolesLocal > p.GolesVisitante ? "#2E8B57" : C.ink }}>{p.GolesLocal}</span>
+                            <span style={{ color: C.ink }}>-</span>
+                            <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.ink }}>{p.GolesVisitante}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded" style={{ background: C.paper, color: C.muted, fontFamily: F_BODY }}>Pendiente</span>
+                        )}
                       </div>
-                      {p.Jugado === "SI" ? (
-                        <span className="text-lg font-bold" style={{ fontFamily: F_MONO }}>
-                          <span style={{ color: p.GolesLocal > p.GolesVisitante ? "#2E8B57" : C.ink }}>{p.GolesLocal}</span>
-                          <span style={{ color: C.ink }}>-</span>
-                          <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.ink }}>{p.GolesVisitante}</span>
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2 py-1 rounded" style={{ background: C.paper, color: C.muted, fontFamily: F_BODY }}>Pendiente</span>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       );
     }
 
+    // ---- VISTA: GOLEADORAS ----
     function VistaGoleadoras({ goleadoras, partidos }) {
       const conGoles = goleadoras.filter((g) => g.Goles_Totales > 0);
       const ranking = [...conGoles].sort((a, b) => b.Goles_Totales - a.Goles_Totales);
       const max = ranking[0]?.Goles_Totales || 1;
 
-      // Contar MVPs por jugadora a partir de los partidos jugados
       const mvpCount = {};
       (partidos || []).forEach((p) => {
         if (p.Jugado === "SI" && p.MVP_Partido) {
@@ -291,11 +291,7 @@
                 <div className="flex-1" style={{ fontFamily: F_BODY }}>
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-medium" style={{ color: C.ink }}>{g.Nombre}</span>
-                    {mvps > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs" style={{ color: C.gold }}>
-                        {"🏆".repeat(Math.min(mvps, 5))}{mvps > 5 ? `+${mvps - 5}` : ""}
-                      </span>
-                    )}
+                    {mvps > 0 && <span className="text-xs" style={{ color: C.gold }}>{"🏆".repeat(Math.min(mvps, 5))}{mvps > 5 ? `+${mvps - 5}` : ""}</span>}
                   </div>
                   <div className="text-xs" style={{ color: C.muted }}>{g.Equipo}</div>
                   <div className="h-1.5 rounded-full mt-1.5" style={{ background: C.paper }}>
@@ -306,23 +302,16 @@
               </div>
             );
           })}
-          <p className="text-xs mt-2 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>
-            🏆 = MVP de partido
-          </p>
+          <p className="text-xs mt-2 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>🏆 = MVP de partido</p>
         </div>
       );
     }
 
-    // Helper: si la fecha viene como ISO largo ("2026-07-08T03:00:00.000Z"),
-    // extrae solo la parte "2026-07-08". Si ya viene limpia, la deja igual.
-    function fechaCorta(f) {
-      if (!f) return "";
-      return String(f).slice(0, 10);
-    }
-
+    // ---- VISTA: NOTICIAS ----
     function VistaNoticias({ noticias, onAbrir }) {
       return (
         <div className="px-4 pb-6 space-y-3">
+          {noticias.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay noticias publicadas.</p>}
           {noticias.map((n) => (
             <button key={n.ID_Noticia} onClick={() => onAbrir(n)} className="w-full text-left rounded-xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
               <div style={{ fontFamily: F_BODY }}>
@@ -339,7 +328,6 @@
     function ModalNoticia({ noticia, onCerrar }) {
       const [imagenCompleta, setImagenCompleta] = useState(false);
       if (!noticia) return null;
-
       if (imagenCompleta && noticia.Imagen_URL) {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => setImagenCompleta(false)}>
@@ -348,7 +336,6 @@
           </div>
         );
       }
-
       return (
         <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(18,32,59,0.55)" }} onClick={onCerrar}>
           <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -356,9 +343,7 @@
               <span className="text-xs" style={{ color: "#9CA3AF" }}>{fechaCorta(noticia.Fecha)}</span>
               <button onClick={onCerrar} style={{ color: C.muted }}>✕</button>
             </div>
-            {noticia.Imagen_URL && (
-              <img src={noticia.Imagen_URL} alt="" className="w-full rounded-lg mb-3 cursor-pointer" onClick={() => setImagenCompleta(true)} style={{ maxHeight: 200, objectFit: "cover" }} />
-            )}
+            {noticia.Imagen_URL && <img src={noticia.Imagen_URL} alt="" className="w-full rounded-lg mb-3 cursor-pointer" onClick={() => setImagenCompleta(true)} style={{ maxHeight: 200, objectFit: "cover" }} />}
             <h3 className="text-lg font-bold mb-2" style={{ color: C.ink }}>{noticia.Titulo}</h3>
             <p className="text-sm leading-relaxed" style={{ color: "#374151" }}>{noticia.Texto}</p>
           </div>
@@ -366,10 +351,11 @@
       );
     }
 
+    // ---- APP PRINCIPAL ----
     function App() {
       const [tab, setTab] = useState("tabla");
       const [noticiaAbierta, setNoticiaAbierta] = useState(null);
-      const { cargando, modoDemo, equipos, partidos, goleadoras, noticias } = useDatosTorneo();
+      const { cargando, modoDemo, equipos, partidos, goleadoras, noticias, config } = useDatosTorneo();
 
       return (
         <div className="min-h-screen flex justify-center" style={{ background: "#E5E1D6" }}>
@@ -384,7 +370,7 @@
 
             {modoDemo && !cargando && (
               <div className="px-4 py-2 text-center text-xs" style={{ background: "#FBEFD2", color: "#8A6300", fontFamily: F_BODY }}>
-                Mostrando datos de ejemplo. Pegá la URL de tu Apps Script en index.html para ver el torneo real.
+                Mostrando datos de ejemplo.
               </div>
             )}
 
@@ -400,8 +386,8 @@
 
             <div className="flex-1">
               {cargando && <p className="px-4 py-6 text-sm text-center" style={{ fontFamily: F_BODY, color: C.muted }}>Cargando...</p>}
-              {!cargando && tab === "tabla" && <VistaTabla equipos={equipos} partidos={partidos} />}
-              {!cargando && tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} />}
+              {!cargando && tab === "tabla" && <VistaTabla equipos={equipos} partidos={partidos} config={config} />}
+              {!cargando && tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} config={config} />}
               {!cargando && tab === "goleadoras" && <VistaGoleadoras goleadoras={goleadoras} partidos={partidos} />}
               {!cargando && tab === "noticias" && <VistaNoticias noticias={noticias} onAbrir={setNoticiaAbierta} />}
             </div>
@@ -417,12 +403,9 @@
 
     ReactDOM.createRoot(document.getElementById("root")).render(<App />);
   </script>
-
   <script>
     if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js").catch(() => {});
-      });
+      window.addEventListener("load", () => { navigator.serviceWorker.register("/service-worker.js").catch(() => {}); });
     }
   </script>
 </body>
