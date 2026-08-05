@@ -1,17 +1,13 @@
 // Service Worker — Liga Femenina de Maxi Handball
-// Estrategia "network-first" para el HTML (siempre intenta traer la
-// versión más nueva de la red; si falla, usa la caché). Los datos del
-// torneo (script.google.com) van siempre a la red, sin caché.
+// Estrategia "stale-while-revalidate" para el HTML: muestra la versión
+// cacheada de inmediato (carga instantánea) y descarga la nueva de fondo
+// para la próxima vez. Los datos del torneo van siempre a la red.
 
-const CACHE_NAME = "liga-handball-v3";
+const CACHE_NAME = "liga-handball-v4";
 
-self.addEventListener("install", (event) => {
-  // Activa inmediatamente sin esperar a que cierre la pestaña vieja
-  self.skipWaiting();
-});
+self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {
-  // Borra cachés viejas y toma control inmediato
   event.waitUntil(
     caches.keys().then((nombres) =>
       Promise.all(nombres.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
@@ -28,27 +24,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // HTML principal: network-first (intenta red, cae a caché si falla)
-  if (event.request.mode === "navigate" || url.endsWith(".html")) {
-    event.respondWith(
-      fetch(event.request)
-        .then((resp) => {
-          const clone = resp.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
-          return resp;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Todo lo demás (íconos, fuentes, JS de CDN): caché-first
+  // HTML y todo lo demás: stale-while-revalidate
+  // (muestra caché al instante, actualiza de fondo)
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((resp) => {
-        const clone = resp.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
-        return resp;
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(event.request).then((cached) => {
+        const fetchPromise = fetch(event.request).then((resp) => {
+          cache.put(event.request, resp.clone());
+          return resp;
+        }).catch(() => cached);
+
+        return cached || fetchPromise;
       });
     })
   );
