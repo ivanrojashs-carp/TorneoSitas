@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Liga Femenina de Handball</title>
+  <title>Liga Femenina de Maxi Handball</title>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#12203B" />
+  <meta name="theme-color" content="#A91B60" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Liga Handball" />
+  <meta name="apple-mobile-web-app-title" content="Maxi Handball" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -38,12 +38,12 @@
       { key: "noticias", label: "Noticias", icon: "📰" },
     ];
 
-    const C = { ink: "#12203B", paper: "#F6F3EC", coral: "#E84C3D", gold: "#F2B705", teal: "#1B6B6B", line: "#E5E1D6", muted: "#6B7280" };
+    // Paleta principal: fucsia como color dominante
+    const C = { ink: "#A91B60", paper: "#F6F3EC", coral: "#E84C3D", gold: "#F2B705", teal: "#1B6B6B", line: "#E5E1D6", muted: "#6B7280", dark: "#12203B" };
     const F_DISPLAY = "Oswald, sans-serif";
     const F_BODY = "Inter, sans-serif";
     const F_MONO = "'JetBrains Mono', monospace";
 
-    // Colores temáticos para zonas y ligas
     const TEMA = {
       Verde:  { bg: "#166534", bgLight: "#dcfce7", accent: "#16a34a", label: "ZONA VERDE", icon: "🟢" },
       Roja:   { bg: "#991b1b", bgLight: "#fee2e2", accent: "#dc2626", label: "ZONA ROJA", icon: "🔴" },
@@ -51,7 +51,7 @@
       Plata:  { bg: "#475569", bgLight: "#f1f5f9", accent: "#64748b", label: "LIGA PLATA", icon: "🥈" },
     };
 
-    // ---- JSONP ----
+    // ---- HELPERS ----
     function jsonp(url) {
       return new Promise((resolve, reject) => {
         const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -64,10 +64,25 @@
       });
     }
 
-    function fechaCorta(f) { return f ? String(f).slice(0, 10) : ""; }
+    // Convierte "2026-07-04" o "2026-07-04T03:00:00.000Z" a "04/07/26"
+    function fechaCorta(f) {
+      if (!f) return "";
+      const s = String(f).slice(0, 10); // "2026-07-04"
+      const partes = s.split("-");
+      if (partes.length !== 3) return s;
+      return partes[2] + "/" + partes[1] + "/" + partes[0].slice(2);
+    }
 
     function equipoPorId(equipos, id) {
       return equipos.find((e) => e.ID_Equipo === id) || { Nombre: id, Zona: "" };
+    }
+
+    // URL de foto de Drive: convierte el link del form a thumbnail visible
+    function fotoDrive(url) {
+      if (!url) return null;
+      const match = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return "https://lh3.googleusercontent.com/d/" + match[1];
+      return url;
     }
 
     // ---- HOOK DE DATOS ----
@@ -87,7 +102,7 @@
       return estado;
     }
 
-    // ---- CÁLCULO DE POSICIONES (client-side) ----
+    // ---- CÁLCULO DE POSICIONES ----
     function calcularPosiciones(equiposFiltrados, partidosFiltrados) {
       return equiposFiltrados.map((eq) => {
         const propios = partidosFiltrados.filter((p) => p.Jugado === "SI" && (p.ID_EquipoLocal === eq.ID_Equipo || p.ID_EquipoVisitante === eq.ID_Equipo));
@@ -102,13 +117,55 @@
           else if (gp === gr) { pe++; forma.push("E"); }
           else { pp++; forma.push("P"); }
         });
-        const pj = propios.length;
-        return { ...eq, pj, pg, pe, pp, gf, gc, dg: gf - gc, pts: pg * 2 + pe, racha: forma.slice(-5).reverse() };
+        return { ...eq, pj: propios.length, pg, pe, pp, gf, gc, dg: gf - gc, pts: pg * 2 + pe, racha: forma.slice(-5).reverse() };
       }).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf);
     }
 
+    // ---- MODAL: PLANTEL DEL EQUIPO ----
+    function ModalEquipo({ equipo, jugadoras, onCerrar }) {
+      if (!equipo) return null;
+      const miembros = jugadoras.filter((j) => (j.ID_Equipo || "").toLowerCase() === (equipo.ID_Equipo || "").toLowerCase());
+      // Jugadoras ordenadas por dorsal numérico, DT siempre al final
+      const esDT = (j) => String(j.Dorsal).toUpperCase() === "DT";
+      const plantilla = [
+        ...miembros.filter((j) => !esDT(j)).sort((a, b) => Number(a.Dorsal) - Number(b.Dorsal)),
+        ...miembros.filter((j) => esDT(j)),
+      ];
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onCerrar}>
+          <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.ink, fontSize: 20 }}>{equipo.Nombre}</h3>
+              <button onClick={onCerrar} style={{ color: C.muted, fontSize: 18 }}>✕</button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {plantilla.map((j) => {
+                const foto = fotoDrive(j.Foto_URL);
+                const dt = esDT(j);
+                return (
+                  <div key={j.ID_Jugadora} className="rounded-xl p-2 text-center" style={{ background: dt ? "#FDF2F8" : C.paper, border: `1px solid ${dt ? C.ink + "33" : C.line}` }}>
+                    {foto ? (
+                      <img src={foto} alt="" className="w-14 h-14 rounded-full mx-auto mb-1.5" style={{ objectFit: "cover", border: `2px solid ${C.ink}` }} />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xl" style={{ background: C.line, color: C.muted }}>{dt ? "👔" : "👤"}</div>
+                    )}
+                    <div className="text-xs font-medium leading-tight" style={{ color: C.dark }}>{j.Nombre}</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: dt ? C.ink : C.muted, fontWeight: 700 }}>
+                      {dt ? "DT" : `#${j.Dorsal}`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {plantilla.length === 0 && <p className="text-sm text-center py-4" style={{ color: C.muted }}>No hay jugadoras cargadas para este equipo.</p>}
+          </div>
+        </div>
+      );
+    }
+
     // ---- COMPONENTE: TABLA DE UN GRUPO ----
-    function TablaGrupo({ titulo, tema, posiciones }) {
+    function TablaGrupo({ tema, posiciones, onEquipoClick }) {
       const t = TEMA[tema] || TEMA.Verde;
       return (
         <div className="mb-4">
@@ -129,12 +186,12 @@
               <tbody>
                 {posiciones.map((eq, i) => (
                   <tr key={eq.ID_Equipo} style={{ background: i % 2 === 0 ? "#FFF" : t.bgLight, borderTop: `1px solid ${C.line}` }}>
-                    <td className="py-2 px-2 font-medium" style={{ fontFamily: F_BODY, color: C.ink }}>{eq.Nombre}</td>
-                    <td className="text-center px-2" style={{ color: C.ink }}>{eq.pj}</td>
-                    <td className="text-center px-2" style={{ color: C.ink }}>{eq.pg}</td>
-                    <td className="text-center px-2" style={{ color: C.ink }}>{eq.pe}</td>
-                    <td className="text-center px-2" style={{ color: C.ink }}>{eq.pp}</td>
-                    <td className="text-center px-2" style={{ color: C.ink }}>{eq.dg > 0 ? `+${eq.dg}` : eq.dg}</td>
+                    <td className="py-2 px-2 font-medium cursor-pointer" onClick={() => onEquipoClick && onEquipoClick(eq)} style={{ fontFamily: F_BODY, color: C.ink, textDecoration: "underline", textDecorationColor: C.ink + "44" }}>{eq.Nombre}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pj}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pg}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pe}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pp}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.dg > 0 ? `+${eq.dg}` : eq.dg}</td>
                     <td className="text-center px-2 font-bold" style={{ color: t.accent }}>{eq.pts}</td>
                     <td className="px-2"><div className="flex gap-1">
                       {eq.racha.length === 0 && <span style={{ color: "#9CA3AF" }}>—</span>}
@@ -153,55 +210,45 @@
     }
 
     // ---- VISTA: TABLA CON FASES ----
-    function VistaTabla({ equipos, partidos, config }) {
+    function VistaTabla({ equipos, jugadoras, partidos, config }) {
       const etapaActual = Number(config.EtapaActual) || 1;
+      const [equipoModal, setEquipoModal] = useState(null);
+
       const partidosFase1 = partidos.filter((p) => String(p.Etapa) === "1");
       const partidosFase2 = partidos.filter((p) => String(p.Etapa) === "2");
-
-      const equiposVerdes = equipos.filter((e) => e.Zona === "Verde");
-      const equiposRojos = equipos.filter((e) => e.Zona === "Roja");
-      const posVerdes = useMemo(() => calcularPosiciones(equiposVerdes, partidosFase1), [equipos, partidos]);
-      const posRojos = useMemo(() => calcularPosiciones(equiposRojos, partidosFase1), [equipos, partidos]);
-
-      const equiposOro = equipos.filter((e) => e.Liga === "Oro");
-      const equiposPlata = equipos.filter((e) => e.Liga === "Plata");
-      const posOro = useMemo(() => calcularPosiciones(equiposOro, partidosFase2), [equipos, partidos]);
-      const posPlata = useMemo(() => calcularPosiciones(equiposPlata, partidosFase2), [equipos, partidos]);
-
-      const hayFase2 = etapaActual >= 2 && (equiposOro.length > 0 || equiposPlata.length > 0);
+      const posVerdes = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Zona === "Verde"), partidosFase1), [equipos, partidos]);
+      const posRojos = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Zona === "Roja"), partidosFase1), [equipos, partidos]);
+      const posOro = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Liga === "Oro"), partidosFase2), [equipos, partidos]);
+      const posPlata = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Liga === "Plata"), partidosFase2), [equipos, partidos]);
+      const hayFase2 = etapaActual >= 2 && (posOro.length > 0 || posPlata.length > 0);
 
       return (
         <div className="px-4 pb-6">
-          {/* Fase 2 arriba si está activa */}
           {hayFase2 && (
             <div className="mb-4">
               <div className="text-center mb-3">
-                <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>
-                  Fase 2 — Ligas
-                </span>
+                <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: C.ink, color: "#FFF", fontFamily: F_BODY }}>Fase 2 — Ligas</span>
               </div>
-              {equiposOro.length > 0 && <TablaGrupo titulo="Liga Oro" tema="Oro" posiciones={posOro} />}
-              {equiposPlata.length > 0 && <TablaGrupo titulo="Liga Plata" tema="Plata" posiciones={posPlata} />}
+              {posOro.length > 0 && <TablaGrupo tema="Oro" posiciones={posOro} onEquipoClick={setEquipoModal} />}
+              {posPlata.length > 0 && <TablaGrupo tema="Plata" posiciones={posPlata} onEquipoClick={setEquipoModal} />}
             </div>
           )}
-
-          {/* Fase 1 siempre visible */}
           <div>
             <div className="text-center mb-3">
-              <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: etapaActual >= 2 ? C.muted : C.ink, color: etapaActual >= 2 ? "#FFF" : C.gold, fontFamily: F_BODY }}>
+              <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full" style={{ background: etapaActual >= 2 ? C.muted : C.ink, color: "#FFF", fontFamily: F_BODY }}>
                 {etapaActual >= 2 ? "Fase 1 — Finalizada" : "Fase 1 — Zonas"}
               </span>
             </div>
-            {equiposVerdes.length > 0 && <TablaGrupo titulo="Zona Verde" tema="Verde" posiciones={posVerdes} />}
-            {equiposRojos.length > 0 && <TablaGrupo titulo="Zona Roja" tema="Roja" posiciones={posRojos} />}
+            {posVerdes.length > 0 && <TablaGrupo tema="Verde" posiciones={posVerdes} onEquipoClick={setEquipoModal} />}
+            {posRojos.length > 0 && <TablaGrupo tema="Roja" posiciones={posRojos} onEquipoClick={setEquipoModal} />}
           </div>
-
           <p className="text-xs mt-3 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>
-            <strong>Forma</strong>: últimos 5 partidos —
+            Tocá el nombre de un equipo para ver su plantel. <strong>Forma</strong>: últimos 5 partidos —
             <span style={{ color: "#2E8B57", fontWeight: 600 }}> G</span> ganado,
             <span style={{ color: C.gold, fontWeight: 600 }}> E</span> empate,
             <span style={{ color: "#A8324A", fontWeight: 600 }}> P</span> perdido.
           </p>
+          <ModalEquipo equipo={equipoModal} jugadoras={jugadoras} onCerrar={() => setEquipoModal(null)} />
         </div>
       );
     }
@@ -210,49 +257,29 @@
     function VistaFixture({ equipos, partidos, config }) {
       const etapaActual = Number(config.EtapaActual) || 1;
       const [etapaVista, setEtapaVista] = useState(etapaActual);
-
-      // Opciones de grupo según la etapa
-      const gruposFase1 = ["Verde", "Roja"];
-      const gruposFase2 = ["Oro", "Plata"];
-      const gruposDisponibles = etapaVista === 1 ? gruposFase1 : gruposFase2;
+      const gruposDisponibles = etapaVista === 1 ? ["Verde", "Roja"] : ["Oro", "Plata"];
       const [grupoVista, setGrupoVista] = useState(gruposDisponibles[0]);
+      const cambiarEtapa = (e) => { setEtapaVista(e); setGrupoVista(e === 1 ? "Verde" : "Oro"); };
 
-      // Resetear grupo al cambiar de etapa
-      const cambiarEtapa = (e) => {
-        setEtapaVista(e);
-        setGrupoVista(e === 1 ? "Verde" : "Oro");
-      };
-
-      // Filtrar partidos: por etapa y por zona/liga del equipo local
       const partidosFiltrados = partidos.filter((p) => {
         if (String(p.Etapa) !== String(etapaVista)) return false;
         const local = equipoPorId(equipos, p.ID_EquipoLocal);
-        if (etapaVista === 1) return local.Zona === grupoVista;
-        return local.Liga === grupoVista;
+        return etapaVista === 1 ? local.Zona === grupoVista : local.Liga === grupoVista;
       });
-
       const jornadas = [...new Set(partidosFiltrados.map((p) => p.Jornada))].sort((a, b) => a - b);
       const tema = TEMA[grupoVista] || TEMA.Verde;
 
       return (
         <div className="px-4 pb-6">
-          {/* Selector de etapa */}
           <div className="flex gap-2 mb-3">
-            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
-              Fase 1 — Zonas
-            </button>
+            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>Fase 1 — Zonas</button>
             {etapaActual >= 2 && (
-              <button onClick={() => cambiarEtapa(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
-                Fase 2 — Ligas
-              </button>
+              <button onClick={() => cambiarEtapa(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>Fase 2 — Ligas</button>
             )}
           </div>
-
-          {/* Selector de zona/liga */}
           <div className="flex gap-2 mb-4">
             {gruposDisponibles.map((g) => {
-              const t = TEMA[g];
-              const activo = grupoVista === g;
+              const t = TEMA[g]; const activo = grupoVista === g;
               return (
                 <button key={g} onClick={() => setGrupoVista(g)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold"
                   style={{ background: activo ? t.bg : "#FFF", color: activo ? "#FFF" : t.accent, border: `2px solid ${t.accent}`, fontFamily: F_BODY }}>
@@ -261,15 +288,11 @@
               );
             })}
           </div>
-
           {jornadas.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos cargados en esta zona.</p>}
-
           <div className="space-y-6">
             {jornadas.map((j) => (
               <div key={j}>
-                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: tema.bg, color: "#FFF", fontFamily: F_BODY }}>
-                  {tema.icon} Fecha {j}
-                </span>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: tema.bg, color: "#FFF", fontFamily: F_BODY }}>{tema.icon} Fecha {j}</span>
                 <div className="space-y-2">
                   {partidosFiltrados.filter((p) => p.Jornada === j).map((p) => {
                     const local = equipoPorId(equipos, p.ID_EquipoLocal);
@@ -277,14 +300,14 @@
                     return (
                       <div key={p.ID_Partido} className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#FFF", border: `2px solid ${tema.accent}22` }}>
                         <div style={{ fontFamily: F_BODY }}>
-                          <div className="text-sm font-medium" style={{ color: C.ink }}>{local.Nombre} vs {visitante.Nombre}</div>
+                          <div className="text-sm font-medium" style={{ color: C.dark }}>{local.Nombre} vs {visitante.Nombre}</div>
                           <div className="text-xs" style={{ color: C.muted }}>{p.Cancha} · {p.Hora} · {fechaCorta(p.Fecha)}</div>
                         </div>
                         {p.Jugado === "SI" ? (
                           <span className="text-lg font-bold" style={{ fontFamily: F_MONO }}>
-                            <span style={{ color: p.GolesLocal > p.GolesVisitante ? "#2E8B57" : C.ink }}>{p.GolesLocal}</span>
-                            <span style={{ color: C.ink }}>-</span>
-                            <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.ink }}>{p.GolesVisitante}</span>
+                            <span style={{ color: p.GolesLocal > p.GolesVisitante ? "#2E8B57" : C.dark }}>{p.GolesLocal}</span>
+                            <span style={{ color: C.dark }}>-</span>
+                            <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.dark }}>{p.GolesVisitante}</span>
                           </span>
                         ) : (
                           <span className="text-xs px-2 py-1 rounded" style={{ background: tema.bgLight, color: tema.accent, fontFamily: F_BODY, fontWeight: 600 }}>Pendiente</span>
@@ -305,18 +328,10 @@
       const conGoles = goleadoras.filter((g) => g.Goles_Totales > 0);
       const ranking = [...conGoles].sort((a, b) => b.Goles_Totales - a.Goles_Totales);
       const max = ranking[0]?.Goles_Totales || 1;
-
       const mvpCount = {};
-      (partidos || []).forEach((p) => {
-        if (p.Jugado === "SI" && p.MVP_Partido) {
-          const id = String(p.MVP_Partido).toUpperCase();
-          mvpCount[id] = (mvpCount[id] || 0) + 1;
-        }
-      });
+      (partidos || []).forEach((p) => { if (p.Jugado === "SI" && p.MVP_Partido) { const id = String(p.MVP_Partido).toUpperCase(); mvpCount[id] = (mvpCount[id] || 0) + 1; } });
 
-      if (ranking.length === 0) {
-        return <p className="px-4 py-6 text-sm text-center" style={{ fontFamily: F_BODY, color: C.muted }}>Todavía no hay goles registrados.</p>;
-      }
+      if (ranking.length === 0) return <p className="px-4 py-6 text-sm text-center" style={{ fontFamily: F_BODY, color: C.muted }}>Todavía no hay goles registrados.</p>;
 
       return (
         <div className="px-4 pb-6 space-y-2">
@@ -327,15 +342,15 @@
                 <span className="text-lg font-bold w-6 text-center" style={{ fontFamily: F_MONO, color: i === 0 ? C.gold : "#9CA3AF" }}>{i + 1}</span>
                 <div className="flex-1" style={{ fontFamily: F_BODY }}>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm font-medium" style={{ color: C.ink }}>{g.Nombre}</span>
+                    <span className="text-sm font-medium" style={{ color: C.dark }}>{g.Nombre}</span>
                     {mvps > 0 && <span className="text-xs" style={{ color: C.gold }}>{"🏆".repeat(Math.min(mvps, 5))}{mvps > 5 ? `+${mvps - 5}` : ""}</span>}
                   </div>
                   <div className="text-xs" style={{ color: C.muted }}>{g.Equipo}</div>
                   <div className="h-1.5 rounded-full mt-1.5" style={{ background: C.paper }}>
-                    <div className="h-1.5 rounded-full" style={{ width: `${(g.Goles_Totales / max) * 100}%`, background: C.coral }} />
+                    <div className="h-1.5 rounded-full" style={{ width: `${(g.Goles_Totales / max) * 100}%`, background: C.ink }} />
                   </div>
                 </div>
-                <span className="text-xl font-bold" style={{ fontFamily: F_MONO, color: C.coral }}>{g.Goles_Totales}</span>
+                <span className="text-xl font-bold" style={{ fontFamily: F_MONO, color: C.ink }}>{g.Goles_Totales}</span>
               </div>
             );
           })}
@@ -353,7 +368,7 @@
             <button key={n.ID_Noticia} onClick={() => onAbrir(n)} className="w-full text-left rounded-xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
               <div style={{ fontFamily: F_BODY }}>
                 <div className="text-xs mb-1" style={{ color: "#9CA3AF" }}>{fechaCorta(n.Fecha)}</div>
-                <div className="text-sm font-medium" style={{ color: C.ink }}>{n.Titulo}</div>
+                <div className="text-sm font-medium" style={{ color: C.dark }}>{n.Titulo}</div>
               </div>
               <span style={{ color: "#9CA3AF" }}>›</span>
             </button>
@@ -374,14 +389,14 @@
         );
       }
       return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(18,32,59,0.55)" }} onClick={onCerrar}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onCerrar}>
           <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-2">
               <span className="text-xs" style={{ color: "#9CA3AF" }}>{fechaCorta(noticia.Fecha)}</span>
               <button onClick={onCerrar} style={{ color: C.muted }}>✕</button>
             </div>
             {noticia.Imagen_URL && <img src={noticia.Imagen_URL} alt="" className="w-full rounded-lg mb-3 cursor-pointer" onClick={() => setImagenCompleta(true)} style={{ maxHeight: 200, objectFit: "cover" }} />}
-            <h3 className="text-lg font-bold mb-2" style={{ color: C.ink }}>{noticia.Titulo}</h3>
+            <h3 className="text-lg font-bold mb-2" style={{ color: C.dark }}>{noticia.Titulo}</h3>
             <p className="text-sm leading-relaxed" style={{ color: "#374151" }}>{noticia.Texto}</p>
           </div>
         </div>
@@ -392,7 +407,7 @@
     function App() {
       const [tab, setTab] = useState("tabla");
       const [noticiaAbierta, setNoticiaAbierta] = useState(null);
-      const { cargando, modoDemo, equipos, partidos, goleadoras, noticias, config } = useDatosTorneo();
+      const { cargando, modoDemo, equipos, jugadoras, partidos, goleadoras, noticias, config } = useDatosTorneo();
 
       return (
         <div className="min-h-screen flex justify-center" style={{ background: "#E5E1D6" }}>
@@ -400,21 +415,19 @@
             <div className="px-4 pt-5 pb-4" style={{ background: C.ink }}>
               <div className="flex items-center gap-2 mb-1">
                 <span>🛡️</span>
-                <span className="text-[10px] tracking-[0.2em] uppercase" style={{ color: C.gold, fontFamily: F_BODY }}>Temporada 2026</span>
+                <span className="text-[10px] tracking-[0.2em] uppercase" style={{ color: "#FFF", fontFamily: F_BODY, opacity: 0.8 }}>Temporada 2026</span>
               </div>
-              <h1 className="text-2xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.paper }}>LIGA FEMENINA<br />DE HANDBALL</h1>
+              <h1 className="text-2xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: "#FFF" }}>LIGA FEMENINA<br />DE MAXI HANDBALL</h1>
             </div>
 
             {modoDemo && !cargando && (
-              <div className="px-4 py-2 text-center text-xs" style={{ background: "#FBEFD2", color: "#8A6300", fontFamily: F_BODY }}>
-                Mostrando datos de ejemplo.
-              </div>
+              <div className="px-4 py-2 text-center text-xs" style={{ background: "#FBEFD2", color: "#8A6300", fontFamily: F_BODY }}>Mostrando datos de ejemplo.</div>
             )}
 
             <div className="flex px-4 pt-4 pb-3 gap-1">
               {TABS.map((t) => (
                 <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
-                  style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? C.gold : C.muted }}>
+                  style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? "#FFF" : C.muted }}>
                   <span>{t.icon}</span>
                   <span className="text-[10px]" style={{ fontFamily: F_BODY, fontWeight: 500 }}>{t.label}</span>
                 </button>
@@ -423,14 +436,14 @@
 
             <div className="flex-1">
               {cargando && <p className="px-4 py-6 text-sm text-center" style={{ fontFamily: F_BODY, color: C.muted }}>Cargando...</p>}
-              {!cargando && tab === "tabla" && <VistaTabla equipos={equipos} partidos={partidos} config={config} />}
+              {!cargando && tab === "tabla" && <VistaTabla equipos={equipos} jugadoras={jugadoras} partidos={partidos} config={config} />}
               {!cargando && tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} config={config} />}
               {!cargando && tab === "goleadoras" && <VistaGoleadoras goleadoras={goleadoras} partidos={partidos} />}
               {!cargando && tab === "noticias" && <VistaNoticias noticias={noticias} onAbrir={setNoticiaAbierta} />}
             </div>
 
             <div className="px-4 py-3 text-center" style={{ fontFamily: F_BODY }}>
-              <span className="text-[10px]" style={{ color: "#9CA3AF" }}>Datos desde Google Sheets</span>
+              <span className="text-[10px]" style={{ color: "#9CA3AF" }}>SITAS · Sociedad Italiana de Tiro al Blanco</span>
             </div>
           </div>
           <ModalNoticia noticia={noticiaAbierta} onCerrar={() => setNoticiaAbierta(null)} />
