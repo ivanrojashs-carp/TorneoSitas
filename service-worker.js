@@ -1,65 +1,55 @@
-// Service Worker — Liga Femenina de Handball
-// Cachea solo el "cascarón" de la app (HTML, CSS, íconos) para que abra
-// instantáneo y sea instalable. Los datos del torneo (partidos, tabla,
-// goleadoras, noticias) SIEMPRE se piden a la red, nunca se cachean,
-// para que los resultados en vivo se vean actualizados.
+// Service Worker — Liga Femenina de Maxi Handball
+// Estrategia "network-first" para el HTML (siempre intenta traer la
+// versión más nueva de la red; si falla, usa la caché). Los datos del
+// torneo (script.google.com) van siempre a la red, sin caché.
 
-const CACHE_NAME = "liga-handball-shell-v1";
+const CACHE_NAME = "liga-handball-v3";
 
-const ARCHIVOS_DEL_SHELL = [
-  "/index.html",
-  "/manifest.json",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/apple-touch-icon.png",
-];
-
-// Al instalar: descarga y cachea el shell
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ARCHIVOS_DEL_SHELL))
-  );
+  // Activa inmediatamente sin esperar a que cierre la pestaña vieja
   self.skipWaiting();
 });
 
-// Al activar: borra cachés viejas de versiones anteriores
 self.addEventListener("activate", (event) => {
+  // Borra cachés viejas y toma control inmediato
   event.waitUntil(
     caches.keys().then((nombres) =>
-      Promise.all(
-        nombres
-          .filter((n) => n !== CACHE_NAME)
-          .map((n) => caches.delete(n))
-      )
-    )
+      Promise.all(nombres.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Estrategia de fetch:
-// - Llamadas a la API de Apps Script (script.google.com) -> siempre red,
-//   nunca caché, porque ahí vive el fixture, los resultados en vivo, etc.
-// - Todo lo demás (shell de la app) -> caché primero, con red de respaldo.
 self.addEventListener("fetch", (event) => {
   const url = event.request.url;
 
-  if (url.includes("script.google.com")) {
+  // Datos del torneo: siempre red, nunca caché
+  if (url.includes("script.google.com") || url.includes("callback=")) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((respuestaCacheada) => {
-      return (
-        respuestaCacheada ||
-        fetch(event.request).then((respuestaRed) => {
-          // Guarda en caché cualquier archivo nuevo del propio sitio
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, respuestaRed.clone());
-            return respuestaRed;
-          });
+  // HTML principal: network-first (intenta red, cae a caché si falla)
+  if (event.request.mode === "navigate" || url.endsWith(".html")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((resp) => {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+          return resp;
         })
-      );
-    }).catch(() => caches.match("/index.html"))
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Todo lo demás (íconos, fuentes, JS de CDN): caché-first
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((resp) => {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+        return resp;
+      });
+    })
   );
 });

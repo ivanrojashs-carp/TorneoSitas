@@ -1,13 +1,13 @@
 {
-  "name": "Liga Femenina de Handball",
-  "short_name": "Liga Handball",
+  "name": "Liga Femenina de Maxi Handball",
+  "short_name": "Maxi Handball",
   "description": "Fixture, resultados en vivo, tabla de posiciones, goleadoras y noticias del torneo.",
-  "start_url": "/index.html",
-  "scope": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F6F3EC",
-  "theme_color": "#12203B",
+  "theme_color": "#A91B60",
   "lang": "es-AR",
   "icons": [
     {
