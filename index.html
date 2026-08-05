@@ -210,35 +210,72 @@
     function VistaFixture({ equipos, partidos, config }) {
       const etapaActual = Number(config.EtapaActual) || 1;
       const [etapaVista, setEtapaVista] = useState(etapaActual);
-      const partidosEtapa = partidos.filter((p) => String(p.Etapa) === String(etapaVista));
-      const jornadas = [...new Set(partidosEtapa.map((p) => p.Jornada))].sort((a, b) => a - b);
+
+      // Opciones de grupo según la etapa
+      const gruposFase1 = ["Verde", "Roja"];
+      const gruposFase2 = ["Oro", "Plata"];
+      const gruposDisponibles = etapaVista === 1 ? gruposFase1 : gruposFase2;
+      const [grupoVista, setGrupoVista] = useState(gruposDisponibles[0]);
+
+      // Resetear grupo al cambiar de etapa
+      const cambiarEtapa = (e) => {
+        setEtapaVista(e);
+        setGrupoVista(e === 1 ? "Verde" : "Oro");
+      };
+
+      // Filtrar partidos: por etapa y por zona/liga del equipo local
+      const partidosFiltrados = partidos.filter((p) => {
+        if (String(p.Etapa) !== String(etapaVista)) return false;
+        const local = equipoPorId(equipos, p.ID_EquipoLocal);
+        if (etapaVista === 1) return local.Zona === grupoVista;
+        return local.Liga === grupoVista;
+      });
+
+      const jornadas = [...new Set(partidosFiltrados.map((p) => p.Jornada))].sort((a, b) => a - b);
+      const tema = TEMA[grupoVista] || TEMA.Verde;
 
       return (
         <div className="px-4 pb-6">
           {/* Selector de etapa */}
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => setEtapaVista(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
+          <div className="flex gap-2 mb-3">
+            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
               Fase 1 — Zonas
             </button>
             {etapaActual >= 2 && (
-              <button onClick={() => setEtapaVista(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
+              <button onClick={() => cambiarEtapa(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>
                 Fase 2 — Ligas
               </button>
             )}
           </div>
 
-          {jornadas.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos cargados en esta fase.</p>}
+          {/* Selector de zona/liga */}
+          <div className="flex gap-2 mb-4">
+            {gruposDisponibles.map((g) => {
+              const t = TEMA[g];
+              const activo = grupoVista === g;
+              return (
+                <button key={g} onClick={() => setGrupoVista(g)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold"
+                  style={{ background: activo ? t.bg : "#FFF", color: activo ? "#FFF" : t.accent, border: `2px solid ${t.accent}`, fontFamily: F_BODY }}>
+                  {t.icon} {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {jornadas.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos cargados en esta zona.</p>}
 
           <div className="space-y-6">
             {jornadas.map((j) => (
               <div key={j}>
-                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>Fecha {j}</span>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: tema.bg, color: "#FFF", fontFamily: F_BODY }}>
+                  {tema.icon} Fecha {j}
+                </span>
                 <div className="space-y-2">
-                  {partidosEtapa.filter((p) => p.Jornada === j).map((p) => {
+                  {partidosFiltrados.filter((p) => p.Jornada === j).map((p) => {
                     const local = equipoPorId(equipos, p.ID_EquipoLocal);
                     const visitante = equipoPorId(equipos, p.ID_EquipoVisitante);
                     return (
-                      <div key={p.ID_Partido} className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
+                      <div key={p.ID_Partido} className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "#FFF", border: `2px solid ${tema.accent}22` }}>
                         <div style={{ fontFamily: F_BODY }}>
                           <div className="text-sm font-medium" style={{ color: C.ink }}>{local.Nombre} vs {visitante.Nombre}</div>
                           <div className="text-xs" style={{ color: C.muted }}>{p.Cancha} · {p.Hora} · {fechaCorta(p.Fecha)}</div>
@@ -250,7 +287,7 @@
                             <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.ink }}>{p.GolesVisitante}</span>
                           </span>
                         ) : (
-                          <span className="text-xs px-2 py-1 rounded" style={{ background: C.paper, color: C.muted, fontFamily: F_BODY }}>Pendiente</span>
+                          <span className="text-xs px-2 py-1 rounded" style={{ background: tema.bgLight, color: tema.accent, fontFamily: F_BODY, fontWeight: 600 }}>Pendiente</span>
                         )}
                       </div>
                     );
