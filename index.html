@@ -280,7 +280,7 @@
       return (
         <div className="px-4 pb-6">
           <div className="flex gap-2 mb-3">
-            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>FASE 1 — ZONAS</button>
+            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>FASE 1 — CLASIFICACION</button>
             {etapaActual >= 2 && (
               <button onClick={() => cambiarEtapa(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>FASE 2 — ZONAS</button>
             )}
