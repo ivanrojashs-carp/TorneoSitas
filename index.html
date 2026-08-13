@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>Liga Femenina de Maxi Handball</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#A91B60"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Maxi Handball"/>
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    body{margin:0;transition:background .3s}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes slideUp{from{transform:translateY(100%);opacity:.8}to{transform:translateY(0);opacity:1}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes glowPulse{0%,100%{box-shadow:0 0 8px rgba(169,27,96,.15)}50%{box-shadow:0 0 20px rgba(169,27,96,.3)}}
+    .fade-in{animation:fadeIn .5s cubic-bezier(.22,1,.36,1) both}
+    .slide-up{animation:slideUp .4s cubic-bezier(.22,1,.36,1) both}
+    .skeleton{animation:pulse 1.5s ease-in-out infinite;border-radius:8px}
+    .btn-press{transition:transform .15s,box-shadow .2s}
+    .btn-press:active{transform:scale(.95)}
+    .card-hover{transition:border-color .3s,box-shadow .3s,transform .2s}
+    .card-hover:active{transform:scale(.985)}
+    .zone-btn{transition:all .3s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
+    .zone-btn::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transition:left .5s}
+    .zone-btn:active::after{left:100%}
+    .glass{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    .glow-accent{animation:glowPulse 3s ease-in-out infinite}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.API_URL="https://script.google.com/macros/s/AKfycbykmKA9zP90dzDHCta9pkqycnabZubx1PR7G6gVFpuoUds-dWElMO592ilaDZX8zjLb/exec";
+</script>
+<script type="text/babel" data-presets="react">
+const{useState,useEffect,useMemo,useCallback}=React;
+
+// ============ TEMAS ============
+const LIGHT={bg:"#F6F3EC",card:"#FFFFFF",cardAlt:"#F9F8F5",text:"#12203B",textSec:"#6B7280",textMut:"#9CA3AF",border:"#E5E1D6",shadow:"rgba(0,0,0,0.04)",overlay:"rgba(18,32,59,0.5)"};
+const DARK={bg:"#121212",card:"#1E1E1E",cardAlt:"#181818",text:"#E0E0E0",textSec:"#999",textMut:"#666",border:"#333",shadow:"rgba(0,0,0,0.3)",overlay:"rgba(0,0,0,0.7)"};
+const ACCENT="#A91B60";
+const ACCENT_DARK="#7B1145";
+const F_D="Oswald,sans-serif";
+const F_B="Inter,sans-serif";
+const F_M="'JetBrains Mono',monospace";
+
+const TEMA={
+  Verde:{bg:"#166534",bgL:"#dcfce7",ac:"#16a34a",acDark:"#4ade80",label:"ZONA VERDE",icon:"\u{1F7E2}"},
+  Roja:{bg:"#991b1b",bgL:"#fee2e2",ac:"#dc2626",acDark:"#f87171",label:"ZONA ROJA",icon:"\u{1F534}"},
+  Oro:{bg:"#92400e",bgL:"#fef3c7",ac:"#d97706",acDark:"#fbbf24",label:"ZONA ORO",icon:"\u{1F947}"},
+  Plata:{bg:"#475569",bgL:"#f1f5f9",ac:"#64748b",acDark:"#94a3b8",label:"ZONA PLATA",icon:"\u{1F948}"},
+};
+const TABS=[{key:"tabla",label:"Tabla",icon:"\u{1F3C6}"},{key:"fixture",label:"Fixture",icon:"\u{1F4C5}"},{key:"goleadoras",label:"Goles",icon:"\u{1F3AF}"},{key:"noticias",label:"Noticias",icon:"\u{1F4F0}"}];
+
+// ============ HELPERS ============
+function jsonp(url){return new Promise((res,rej)=>{const cb="cb_"+Math.random().toString(36).slice(2);const s=document.createElement("script");window[cb]=d=>{res(d);delete window[cb];s.remove()};s.onerror=()=>{rej(new Error("API"));delete window[cb];s.remove()};s.src=url+(url.includes("?")?"&":"?")+"callback="+cb+"&_ts="+Date.now();document.body.appendChild(s)})}
+function fechaCorta(f){if(!f)return"";const s=String(f).slice(0,10).split("-");return s.length===3?s[2]+"/"+s[1]+"/"+s[0].slice(2):String(f).slice(0,10)}
+function equipoPorId(eq,id){return eq.find(e=>e.ID_Equipo===id)||{Nombre:id,Zona:""}}
+function fotoDrive(u){if(!u)return null;const m=String(u).match(/\/d\/([a-zA-Z0-9_-]+)/);return m?"https://lh3.googleusercontent.com/d/"+m[1]:u}
+
+// ============ TEMA CONTEXT ============
+const ThemeCtx=React.createContext(LIGHT);
+function useTheme(){return React.useContext(ThemeCtx)}
+
+// ============ DATA HOOK ============
+function parseCfg(d){const c={};(d.configuracion||[]).forEach(x=>{c[x.Clave]=x.Valor});return{cargando:false,modoDemo:false,equipos:d.equipos||[],jugadoras:d.jugadoras||[],partidos:d.partidos||[],goles:d.goles||[],goleadoras:d.goleadoras||[],noticias:d.noticias||[],config:c}}
+function useDatos(){
+  const cached=(()=>{try{const c=localStorage.getItem("torneo_cache");return c?parseCfg(JSON.parse(c)):null}catch{return null}})();
+  const[st,setSt]=useState(cached||{cargando:true,modoDemo:false,equipos:[],jugadoras:[],partidos:[],goles:[],goleadoras:[],noticias:[],config:{}});
+  useEffect(()=>{const u=window.API_URL;if(!u||u.includes("PEGAR")){setSt(s=>({...s,cargando:false,modoDemo:true}));return}
+    jsonp(`${u}?recurso=todo`).then(d=>{try{localStorage.setItem("torneo_cache",JSON.stringify(d))}catch{};setSt(parseCfg(d))}).catch(()=>{if(!cached)setSt(s=>({...s,cargando:false,modoDemo:true}))})
+  },[]);return st}
+
+// ============ POSICIONES ============
+function calcPos(eqs,pts,cfg){
+  const pV=Number(cfg.PuntosVictoria)||3,pE=Number(cfg.PuntosEmpate)||2,pD=Number(cfg.PuntosDerrota)||1;
+  return eqs.map(eq=>{
+    const pr=pts.filter(p=>p.Jugado==="SI"&&(p.ID_EquipoLocal===eq.ID_Equipo||p.ID_EquipoVisitante===eq.ID_Equipo));
+    let pg=0,pe=0,pp=0,gf=0,gc=0;const fm=[];
+    pr.slice().sort((a,b)=>new Date(a.Fecha)-new Date(b.Fecha)).forEach(p=>{
+      const l=p.ID_EquipoLocal===eq.ID_Equipo;const gp=Number(l?p.GolesLocal:p.GolesVisitante);const gr=Number(l?p.GolesVisitante:p.GolesLocal);
+      gf+=gp;gc+=gr;if(gp>gr){pg++;fm.push("G")}else if(gp===gr){pe++;fm.push("E")}else{pp++;fm.push("P")}
+    });return{...eq,pj:pr.length,pg,pe,pp,gf,gc,dg:gf-gc,pts:pg*pV+pe*pE+pp*pD,racha:fm.slice(-5).reverse()}
+  }).sort((a,b)=>b.pts-a.pts||b.dg-a.dg||b.gf-a.gf)}
+
+// ============ SKELETON ============
+function Skeleton(){const t=useTheme();return(
+  <div className="px-4 py-6 space-y-3 fade-in">
+    <div className="skeleton h-8 w-48" style={{background:t.border}}/>
+    <div className="skeleton h-6 w-full" style={{background:t.border}}/>
+    <div className="skeleton h-6 w-full" style={{background:t.border}}/>
+    <div className="skeleton h-6 w-3/4" style={{background:t.border}}/>
+    <div className="skeleton h-20 w-full mt-4" style={{background:t.border}}/>
+  </div>
+)}
+
+// ============ MODAL EQUIPO ============
+function ModalEquipo({equipo,jugadoras,onCerrar}){
+  const t=useTheme();if(!equipo)return null;
+  const esDT=j=>String(j.Dorsal).toUpperCase()==="DT";
+  const pl=[...jugadoras.filter(j=>(j.ID_Equipo||"").toLowerCase()===(equipo.ID_Equipo||"").toLowerCase())];
+  const lista=[...pl.filter(j=>!esDT(j)).sort((a,b)=>Number(a.Dorsal)-Number(b.Dorsal)),...pl.filter(j=>esDT(j))];
+  return(
+    <div className="fixed inset-0 z-50 flex items-end justify-center" className="glass" style={{background:t.overlay}} onClick={onCerrar}>
+      <div className="w-full max-w-sm rounded-t-2xl p-5 slide-up" style={{background:t.card,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            {fotoDrive(equipo.Escudo_URL)&&<img src={fotoDrive(equipo.Escudo_URL)} alt="" className="w-8 h-8 rounded-full" style={{objectFit:"cover"}}/>}
+            <h3 style={{fontFamily:F_D,fontWeight:700,color:ACCENT,fontSize:20}}>{equipo.Nombre}</h3>
+          </div>
+          <button onClick={onCerrar} style={{color:t.textMut,fontSize:18}}>✕</button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {lista.map(j=>{const f=fotoDrive(j.Foto_URL);const dt=esDT(j);return(
+            <div key={j.ID_Jugadora} className="rounded-xl p-2 text-center" style={{background:dt?ACCENT+"10":t.cardAlt,border:`1px solid ${dt?ACCENT+"33":t.border}`,transition:"transform .15s"}}>
+              {f?<img src={f} alt="" className="w-14 h-14 rounded-full mx-auto mb-1.5" style={{objectFit:"cover",border:`2px solid ${ACCENT}`}}/>
+              :<div className="w-14 h-14 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xl" style={{background:t.border,color:t.textMut}}>{dt?"👔":"👤"}</div>}
+              <div className="text-xs font-medium leading-tight" style={{color:t.text}}>{j.Nombre}</div>
+              <div className="text-[10px] mt-0.5" style={{color:dt?ACCENT:t.textMut,fontWeight:700}}>{dt?"DT":`#${j.Dorsal}`}</div>
+            </div>
+          )})}
+        </div>
+        {lista.length===0&&<p className="text-sm text-center py-4" style={{color:t.textMut}}>Sin jugadoras cargadas.</p>}
+      </div>
+    </div>
+  )}
+
+// ============ TABLA GRUPO ============
+function TablaGrupo({tema,posiciones,onEquipoClick,isDark}){
+  const t=useTheme();const z=TEMA[tema]||TEMA.Verde;
+  const acPts=isDark?z.acDark:z.ac;
+  return(
+    <div className="mb-5 fade-in">
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <span className="text-lg">{z.icon}</span>
+        <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg" style={{background:`linear-gradient(135deg,${z.bg} 0%,${z.bg}cc 100%)`,color:"#FFF",fontFamily:F_B,boxShadow:`0 2px 10px ${z.bg}33`}}>{z.label}</span>
+      </div>
+      <div className="overflow-x-auto rounded-xl" style={{border:`0.5px solid ${t.border}`,boxShadow:`0 2px 12px ${t.shadow}`}}>
+        <table className="w-full text-sm" style={{fontFamily:F_M}}>
+          <thead><tr style={{background:`linear-gradient(135deg,${z.bg} 0%,${z.bg}dd 100%)`,color:"#FFF"}}>
+            <th className="text-left py-2 px-2 font-normal" style={{fontFamily:F_B}}>Equipo</th>
+            <th className="px-1">PJ</th><th className="px-1">PG</th><th className="px-1">PE</th>
+            <th className="px-1">PP</th><th className="px-1">DG</th><th className="px-1">Pts</th>
+            <th className="px-1 text-left" style={{fontFamily:F_B}}>Forma</th>
+          </tr></thead>
+          <tbody>{posiciones.map((eq,i)=>(
+            <tr key={eq.ID_Equipo} className="card-hover" style={{background:i%2===0?t.card:t.cardAlt,borderTop:`0.5px solid ${t.border}`,cursor:onEquipoClick?"pointer":"default"}} onClick={()=>onEquipoClick&&onEquipoClick(eq)}>
+              <td className="py-2 px-2" style={{fontFamily:F_B,color:t.text}}>
+                <div className="flex items-center gap-1.5">
+                  {fotoDrive(eq.Escudo_URL)?<img src={fotoDrive(eq.Escudo_URL)} alt="" className="w-5 h-5 rounded-full" style={{objectFit:"cover"}}/>:null}
+                  <span className="font-medium">{eq.Nombre}</span>
+                </div>
+              </td>
+              <td className="text-center px-1" style={{color:t.textSec}}>{eq.pj}</td>
+              <td className="text-center px-1" style={{color:t.textSec}}>{eq.pg}</td>
+              <td className="text-center px-1" style={{color:t.textSec}}>{eq.pe}</td>
+              <td className="text-center px-1" style={{color:t.textSec}}>{eq.pp}</td>
+              <td className="text-center px-1" style={{color:t.text}}>{eq.dg>0?`+${eq.dg}`:eq.dg}</td>
+              <td className="text-center px-1 font-bold" style={{color:acPts}}>{eq.pts}</td>
+              <td className="px-1"><div className="flex gap-0.5">
+                {eq.racha.length===0&&<span style={{color:t.textMut}}>—</span>}
+                {eq.racha.map((r,idx)=>(
+                  <span key={idx} className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold"
+                    style={{background:r==="G"?"#2E8B57":r==="E"?"#F2B705":"#A8324A",color:"#FFF"}}>{r}</span>
+                ))}
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  )}
+
+// ============ VISTA TABLA ============
+function VistaTabla({equipos,jugadoras,partidos,config,isDark}){
+  const t=useTheme();const ea=Number(config.EtapaActual)||1;
+  const[em,setEm]=useState(null);
+  const mp=config.MostrarPlantel!=="NO";
+  const p1=partidos.filter(p=>String(p.Etapa)==="1");
+  const p2=partidos.filter(p=>String(p.Etapa)==="2");
+  const pV=useMemo(()=>calcPos(equipos.filter(e=>e.Zona==="Verde"),p1,config),[equipos,partidos,config]);
+  const pR=useMemo(()=>calcPos(equipos.filter(e=>e.Zona==="Roja"),p1,config),[equipos,partidos,config]);
+  const pO=useMemo(()=>calcPos(equipos.filter(e=>e.Liga==="Oro"),p2,config),[equipos,partidos,config]);
+  const pP=useMemo(()=>calcPos(equipos.filter(e=>e.Liga==="Plata"),p2,config),[equipos,partidos,config]);
+  const h2=ea>=2&&(pO.length>0||pP.length>0);
+  return(
+    <div className="px-4 pb-6 fade-in">
+      {h2&&<div className="mb-4">
+        <div className="text-center mb-3"><span className="block text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl glow-accent" style={{background:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT_DARK} 100%)`,color:"#FFF",fontFamily:F_B,boxShadow:`0 4px 15px ${ACCENT}33`}}>FASE 2 — ZONAS</span></div>
+        {pO.length>0&&<TablaGrupo tema="Oro" posiciones={pO} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
+        {pP.length>0&&<TablaGrupo tema="Plata" posiciones={pP} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
+      </div>}
+      <div>
+        <div className="text-center mb-3"><span className="block text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl" style={{background:ea>=2?t.textMut:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT_DARK} 100%)`,color:"#FFF",fontFamily:F_B,boxShadow:ea>=2?"none":`0 4px 15px ${ACCENT}33`}}>{ea>=2?"FASE 1 — FINALIZADA":"FASE 1 — CLASIFICACIÓN"}</span></div>
+        {pV.length>0&&<TablaGrupo tema="Verde" posiciones={pV} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
+        {pR.length>0&&<TablaGrupo tema="Roja" posiciones={pR} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
+      </div>
+      <p className="text-xs mt-3 px-1" style={{color:t.textMut,fontFamily:F_B}}>
+        {mp&&"Tocá un equipo para ver su plantel. "}<strong>Forma</strong>: últimos 5 —
+        <span style={{color:"#2E8B57",fontWeight:600}}> G</span> ({config.PuntosVictoria||3}pts),
+        <span style={{color:"#F2B705",fontWeight:600}}> E</span> ({config.PuntosEmpate||2}pts),
+        <span style={{color:"#A8324A",fontWeight:600}}> P</span> ({config.PuntosDerrota||1}pt).
+      </p>
+      <ModalEquipo equipo={em} jugadoras={jugadoras} onCerrar={()=>setEm(null)}/>
+    </div>
+  )}
+
+// ============ MODAL PARTIDO ============
+function ModalPartido({partido,equipos,jugadoras,goles,onCerrar}){
+  const t=useTheme();if(!partido||partido.Jugado!=="SI")return null;
+  const lo=equipoPorId(equipos,partido.ID_EquipoLocal);const vi=equipoPorId(equipos,partido.ID_EquipoVisitante);
+  const gp=(goles||[]).filter(g=>String(g.ID_Partido).toLowerCase()===String(partido.ID_Partido).toLowerCase());
+  const cd=gp.map(g=>{const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===(g.ID_Jugadora||"").toLowerCase());return{...g,nombre:j?j.Nombre:g.ID_Jugadora,idEquipo:j?j.ID_Equipo:""}}).filter(g=>Number(g.Cantidad_Goles)>0);
+  const gL=cd.filter(g=>(g.idEquipo||"").toLowerCase()===(partido.ID_EquipoLocal||"").toLowerCase()).sort((a,b)=>Number(b.Cantidad_Goles)-Number(a.Cantidad_Goles));
+  const gV=cd.filter(g=>(g.idEquipo||"").toLowerCase()===(partido.ID_EquipoVisitante||"").toLowerCase()).sort((a,b)=>Number(b.Cantidad_Goles)-Number(a.Cantidad_Goles));
+  const mvp=(()=>{if(!partido.MVP_Partido)return null;const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===String(partido.MVP_Partido).toLowerCase());return j?j.Nombre:null})();
+  const Lista=({lista,equipo})=>(
+    <div className="flex-1">
+      <div className="flex items-center gap-1.5 mb-2">
+        {fotoDrive(equipo.Escudo_URL)&&<img src={fotoDrive(equipo.Escudo_URL)} alt="" className="w-5 h-5 rounded-full" style={{objectFit:"cover"}}/>}
+        <span className="text-xs font-bold" style={{color:t.text,fontFamily:F_B}}>{equipo.Nombre}</span>
+      </div>
+      {lista.length===0&&<p className="text-[11px]" style={{color:t.textMut}}>Sin goles</p>}
+      {lista.map((g,i)=>(<div key={i} className="flex items-center justify-between gap-1.5 mb-1"><span className="text-xs" style={{color:t.text,fontFamily:F_B}}>⚽ {g.nombre}</span><span className="text-[11px] font-bold px-1.5 rounded flex-shrink-0" style={{background:ACCENT+"15",color:ACCENT}}>{g.Cantidad_Goles}</span></div>))}
+    </div>);
+  return(
+    <div className="fixed inset-0 z-50 flex items-center justify-center glass" style={{background:t.overlay}} onClick={onCerrar}>
+      <div className="w-11/12 max-w-sm rounded-2xl p-5 fade-in" style={{background:t.card,fontFamily:F_B,maxHeight:"80vh",overflowY:"auto",boxShadow:`0 10px 40px rgba(0,0,0,.25)`}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><span className="text-xs" style={{color:t.textMut}}>{fechaCorta(partido.Fecha)} · {partido.Hora}</span><button onClick={onCerrar} style={{color:t.textMut,fontSize:18}}>✕</button></div>
+        <div className="text-center mb-4"><span className="text-2xl font-bold" style={{fontFamily:F_M}}>
+          <span style={{color:partido.GolesLocal>partido.GolesVisitante?"#2E8B57":t.text}}>{partido.GolesLocal}</span>
+          <span style={{color:t.textMut}}> — </span>
+          <span style={{color:partido.GolesVisitante>partido.GolesLocal?"#2E8B57":t.text}}>{partido.GolesVisitante}</span>
+        </span></div>
+        <div className="flex gap-4 mb-3" style={{borderTop:`0.5px solid ${t.border}`,paddingTop:12}}><Lista lista={gL} equipo={lo}/><div style={{width:1,background:t.border}}/><Lista lista={gV} equipo={vi}/></div>
+        {mvp&&<div className="text-center pt-2" style={{borderTop:`0.5px solid ${t.border}`}}><span className="text-[11px]" style={{color:t.textMut}}>⭐ MVP: </span><span className="text-[11px] font-bold" style={{color:ACCENT}}>{mvp}</span></div>}
+      </div>
+    </div>)}
+
+// ============ VISTA FIXTURE ============
+function VistaFixture({equipos,jugadoras,partidos,goles,config,isDark}){
+  const t=useTheme();const ea=Number(config.EtapaActual)||1;
+  const[ev,setEv]=useState(ea);const gd=ev===1?["Verde","Roja"]:["Oro","Plata"];const[gv,setGv]=useState(gd[0]);
+  const[pd,setPd]=useState(null);
+  const ce=e=>{setEv(e);setGv(e===1?"Verde":"Oro")};
+  const pf=partidos.filter(p=>{if(String(p.Etapa)!==String(ev))return false;const l=equipoPorId(equipos,p.ID_EquipoLocal);return ev===1?l.Zona===gv:l.Liga===gv});
+  const jn=[...new Set(pf.map(p=>p.Jornada))].sort((a,b)=>a-b);
+  const z=TEMA[gv]||TEMA.Verde;
+  const bMvp=mid=>{if(!mid)return null;const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===String(mid).toLowerCase());if(!j)return null;return{nombre:j.Nombre,equipo:equipoPorId(equipos,j.ID_Equipo).Nombre}};
+  return(
+    <div className="px-4 pb-6 fade-in">
+      <div className="flex gap-2 mb-3">
+        <button className="flex-1 py-1.5 rounded-lg text-xs font-bold btn-press" onClick={()=>ce(1)} style={{background:ev===1?ACCENT:t.card,color:ev===1?"#FFF":t.textMut,border:`1px solid ${ev===1?ACCENT:t.border}`,fontFamily:F_B}}>FASE 1 — ZONAS</button>
+        {ea>=2&&<button className="flex-1 py-1.5 rounded-lg text-xs font-bold btn-press" onClick={()=>ce(2)} style={{background:ev===2?ACCENT:t.card,color:ev===2?"#FFF":t.textMut,border:`1px solid ${ev===2?ACCENT:t.border}`,fontFamily:F_B}}>FASE 2 — ZONAS</button>}
+      </div>
+      <div className="flex gap-2 mb-4">
+        {gd.map(g=>{const tz=TEMA[g];const a=gv===g;return(
+          <button key={g} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold btn-press zone-btn" onClick={()=>setGv(g)}
+            style={{background:a?`linear-gradient(135deg,${tz.bg} 0%,${tz.bg}88 40%,${tz.bg} 100%)`:`linear-gradient(135deg,${t.card} 0%,${isDark?tz.bg+"22":tz.ac+"11"} 100%)`,color:a?"#FFF":(isDark?tz.acDark:tz.ac),border:a?`2px solid ${tz.bg}`:`2px solid ${isDark?tz.acDark+"55":tz.ac+"44"}`,fontFamily:F_B,boxShadow:a?`0 4px 18px ${tz.bg}55`:"0 1px 4px "+t.shadow}}>{tz.icon} {tz.label}</button>
+        )})}
+      </div>
+      {jn.length===0&&<p className="text-sm text-center py-4" style={{fontFamily:F_B,color:t.textMut}}>No hay partidos en esta zona.</p>}
+      <div className="space-y-5">
+        {jn.map(j=>(
+          <div key={j} className="fade-in">
+            <span className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg inline-block mb-2" style={{background:`linear-gradient(135deg,${z.bg} 0%,${z.bg}cc 100%)`,color:"#FFF",fontFamily:F_B,boxShadow:`0 2px 8px ${z.bg}33`}}>{z.icon} FECHA {j}</span>
+            <div className="space-y-2">
+              {pf.filter(p=>p.Jornada===j).map(p=>{
+                const lo=equipoPorId(equipos,p.ID_EquipoLocal);const vi=equipoPorId(equipos,p.ID_EquipoVisitante);const mvp=p.Jugado==="SI"?bMvp(p.MVP_Partido):null;
+                return(
+                  <div key={p.ID_Partido} className={`rounded-xl px-4 py-3 card-hover ${p.Jugado==="SI"?"cursor-pointer":""}`} onClick={()=>p.Jugado==="SI"&&setPd(p)} style={{background:t.card,border:`0.5px solid ${t.border}`,boxShadow:`0 1px 8px ${t.shadow}`}}>
+                    <div className="flex items-center justify-between">
+                      <div style={{fontFamily:F_B}}>
+                        <div className="text-sm font-medium" style={{color:t.text}}>
+                          <span className="inline-flex items-center gap-1">{fotoDrive(lo.Escudo_URL)&&<img src={fotoDrive(lo.Escudo_URL)} alt="" className="w-4 h-4 rounded-full flex-shrink-0" style={{objectFit:"cover"}}/>}{lo.Nombre}</span>
+                          {" vs "}
+                          <span className="inline-flex items-center gap-1">{fotoDrive(vi.Escudo_URL)&&<img src={fotoDrive(vi.Escudo_URL)} alt="" className="w-4 h-4 rounded-full flex-shrink-0" style={{objectFit:"cover"}}/>}{vi.Nombre}</span>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{color:t.textMut}}>{p.Cancha} · {p.Hora} · {fechaCorta(p.Fecha)}</div>
+                      </div>
+                      {p.Jugado==="SI"?(<span className="text-lg font-bold" style={{fontFamily:F_M}}>
+                        <span style={{color:p.GolesLocal>p.GolesVisitante?"#2E8B57":t.text}}>{p.GolesLocal}</span>
+                        <span style={{color:t.textMut}}>-</span>
+                        <span style={{color:p.GolesVisitante>p.GolesLocal?"#2E8B57":t.text}}>{p.GolesVisitante}</span>
+                      </span>):(<span className="text-xs px-2 py-1 rounded font-semibold" style={{background:isDark?z.bg+"33":z.bgL,color:isDark?z.acDark:z.ac,fontFamily:F_B}}>PENDIENTE</span>)}
+                    </div>
+                    {mvp&&<div className="mt-1.5 flex items-center gap-1.5" style={{fontFamily:F_B}}><span className="text-[10px]">⭐</span><span className="text-[11px]" style={{color:ACCENT,fontWeight:600}}>MVP: {mvp.nombre}</span><span className="text-[10px]" style={{color:t.textMut}}>({mvp.equipo})</span></div>}
+                  </div>
+                )})}
+            </div>
+          </div>
+        ))}
+      </div>
+      <ModalPartido partido={pd} equipos={equipos} jugadoras={jugadoras} goles={goles} onCerrar={()=>setPd(null)}/>
+    </div>)}
+
+// ============ VISTA GOLEADORAS ============
+function VistaGoleadoras({goleadoras,jugadoras,partidos,equipos,config,isDark}){
+  const t=useTheme();const ea=Number(config.EtapaActual)||1;
+  const[gv,setGv]=useState("Verde");const gd=ea>=2?["Verde","Roja","Oro","Plata"]:["Verde","Roja"];
+  const gf=goleadoras.filter(g=>{const eq=(equipos||[]).find(e=>e.Nombre===g.Equipo);if(!eq)return false;return(gv==="Verde"||gv==="Roja")?eq.Zona===gv:eq.Liga===gv});
+  const cg=gf.filter(g=>g.Goles_Totales>0);
+  const rk=[...cg].sort((a,b)=>b.Goles_Totales-a.Goles_Totales||(a.Nombre||"").localeCompare(b.Nombre||""));
+  const mx=rk[0]?.Goles_Totales||1;
+  const mc={};(partidos||[]).forEach(p=>{if(p.Jugado==="SI"&&p.MVP_Partido){const id=String(p.MVP_Partido).toUpperCase();mc[id]=(mc[id]||0)+1}});
+  const bF=id=>{const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===(id||"").toLowerCase());return j?fotoDrive(j.Foto_URL):null};
+  const medals=["#FFD700","#C0C0C0","#CD7F32"];
+  const ZoneBtns=()=>(
+    <div className="flex gap-2 mb-4 flex-wrap">
+      {gd.map(g=>{const z=TEMA[g];const a=gv===g;return(
+        <button key={g} className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-bold btn-press zone-btn" onClick={()=>setGv(g)}
+          style={{background:a?`linear-gradient(135deg,${z.bg} 0%,${z.bg}88 40%,${z.bg} 100%)`:`linear-gradient(135deg,${t.card} 0%,${isDark?z.bg+"22":z.ac+"11"} 100%)`,color:a?"#FFF":(isDark?z.acDark:z.ac),border:a?`2px solid ${z.bg}`:`2px solid ${isDark?z.acDark+"55":z.ac+"44"}`,fontFamily:F_B,minWidth:"45%",boxShadow:a?`0 4px 18px ${z.bg}55`:"0 1px 4px "+t.shadow}}>{z.icon} {z.label}</button>
+      )})}
+    </div>);
+  if(rk.length===0)return(<div className="px-4 pb-6 fade-in"><ZoneBtns/><p className="text-sm text-center py-4" style={{fontFamily:F_B,color:t.textMut}}>Sin goles en esta zona.</p></div>);
+  return(
+    <div className="px-4 pb-6 fade-in"><ZoneBtns/><div className="space-y-2">
+      {rk.map((g,i)=>{const mvps=mc[String(g.ID_Jugadora).toUpperCase()]||0;const top3=i<3;const foto=top3?bF(g.ID_Jugadora):null;
+        return(
+          <div key={g.ID_Jugadora||g.Nombre} className="rounded-xl px-4 py-3 flex items-center gap-3 card-hover" style={{background:t.card,border:top3?`2px solid ${medals[i]}55`:`0.5px solid ${t.border}`,boxShadow:top3?`0 3px 12px ${medals[i]}22`:`0 1px 6px ${t.shadow}`}}>
+            <div className="flex flex-col items-center" style={{minWidth:32}}>
+              {top3&&foto?<img src={foto} alt="" className="w-9 h-9 rounded-full mb-0.5" style={{objectFit:"cover",border:`2px solid ${medals[i]}`}}/>
+              :top3?<div className="w-9 h-9 rounded-full mb-0.5 flex items-center justify-center text-sm" style={{background:t.border,color:t.textMut,border:`2px solid ${medals[i]}`}}>👤</div>:null}
+              <span className="text-sm font-bold text-center" style={{fontFamily:F_M,color:top3?medals[i]:t.textMut}}>{i+1}</span>
+            </div>
+            <div className="flex-1" style={{fontFamily:F_B}}>
+              <div className="flex items-center gap-1"><span className="text-sm font-medium" style={{color:t.text}}>{g.Nombre}</span>{mvps>0&&<span className="text-xs" style={{color:"#F2B705"}}>{"🏆".repeat(Math.min(mvps,5))}{mvps>5?`+${mvps-5}`:""}</span>}</div>
+              <div className="text-xs" style={{color:t.textMut}}>{g.Equipo}</div>
+              <div className="h-1.5 rounded-full mt-1.5" style={{background:t.border}}><div className="h-1.5 rounded-full" style={{width:`${(g.Goles_Totales/mx)*100}%`,background:ACCENT,transition:"width .5s ease-out"}}/></div>
+            </div>
+            <span className="text-xl font-bold" style={{fontFamily:F_M,color:ACCENT}}>{g.Goles_Totales}</span>
+          </div>)})}
+      <p className="text-xs mt-2 px-1" style={{color:t.textMut,fontFamily:F_B}}>🏆 = MVP de partido</p>
+    </div></div>)}
+
+// ============ NOTICIAS ============
+function VistaNoticias({noticias,onAbrir}){
+  const t=useTheme();return(
+    <div className="px-4 pb-6 space-y-3 fade-in">
+      {noticias.length===0&&<p className="text-sm text-center py-4" style={{fontFamily:F_B,color:t.textMut}}>No hay noticias.</p>}
+      {noticias.map(n=>(
+        <button key={n.ID_Noticia} onClick={()=>onAbrir(n)} className="w-full text-left rounded-xl px-4 py-3 flex items-center justify-between gap-2 card-hover btn-press" style={{background:t.card,border:`0.5px solid ${t.border}`}}>
+          <div style={{fontFamily:F_B}}><div className="text-[10px] mb-0.5" style={{color:t.textMut}}>{fechaCorta(n.Fecha)}</div><div className="text-sm font-medium" style={{color:t.text}}>{n.Titulo}</div></div>
+          <span style={{color:t.textMut}}>›</span>
+        </button>))}
+    </div>)}
+
+function ModalNoticia({noticia,onCerrar}){
+  const t=useTheme();const[full,setFull]=useState(false);if(!noticia)return null;
+  if(full&&noticia.Imagen_URL){const iu=fotoDrive(noticia.Imagen_URL)||noticia.Imagen_URL;return(
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,.85)"}} onClick={()=>setFull(false)}>
+      <img src={iu} alt="" style={{maxWidth:"95%",maxHeight:"90vh",objectFit:"contain",borderRadius:8}}/><button className="absolute top-4 right-4" onClick={()=>setFull(false)} style={{color:"#FFF",fontSize:24}}>✕</button>
+    </div>)}
+  return(
+    <div className="fixed inset-0 z-50 flex items-end justify-center" className="glass" style={{background:t.overlay}} onClick={onCerrar}>
+      <div className="w-full max-w-sm rounded-t-2xl p-5 slide-up" style={{background:t.card,fontFamily:F_B,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-2"><span className="text-[10px]" style={{color:t.textMut}}>{fechaCorta(noticia.Fecha)}</span><button onClick={onCerrar} style={{color:t.textMut}}>✕</button></div>
+        {noticia.Imagen_URL&&<img src={fotoDrive(noticia.Imagen_URL)||noticia.Imagen_URL} alt="" className="w-full rounded-lg mb-3 cursor-pointer" onClick={()=>setFull(true)} style={{maxHeight:200,objectFit:"cover"}}/>}
+        <h3 className="text-lg font-bold mb-2" style={{color:t.text}}>{noticia.Titulo}</h3>
+        <p className="text-sm leading-relaxed" style={{color:t.textSec}}>{noticia.Texto}</p>
+      </div>
+    </div>)}
+
+// ============ APP ============
+function App(){
+  const[tab,setTab]=useState("tabla");const[na,setNa]=useState(null);
+  const[dark,setDark]=useState(()=>{try{return localStorage.getItem("theme_dark")==="1"}catch{return false}});
+  const theme=dark?DARK:LIGHT;
+  useEffect(()=>{document.body.style.background=theme.bg;try{localStorage.setItem("theme_dark",dark?"1":"0")}catch{}},[dark]);
+  const{cargando,modoDemo,equipos,jugadoras,partidos,goles,goleadoras,noticias,config}=useDatos();
+  return(
+    <ThemeCtx.Provider value={theme}>
+    <div className="min-h-screen flex justify-center" style={{background:theme.bg,transition:"background .3s"}}>
+      <div className="w-full max-w-sm flex flex-col" style={{background:theme.bg,minHeight:"100vh"}}>
+        {/* HEADER */}
+        <div className="px-4 pt-5 pb-4 relative overflow-hidden" style={{background:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT_DARK} 100%)`}}>
+          <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(255,255,255,.06)"}}/>
+          <div style={{position:"absolute",bottom:-30,right:40,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,.04)"}}/>
+          <div className="flex items-center justify-between mb-1 relative z-10">
+            <div className="flex items-center gap-2">
+              <img src="icons/icon-192.png" alt="" className="w-8 h-8 rounded-full" style={{border:"2px solid rgba(255,255,255,.3)"}}/>
+              <span className="text-[10px] tracking-[0.2em] uppercase" style={{color:"rgba(255,255,255,.7)",fontFamily:F_B}}>TEMPORADA 2026</span>
+            </div>
+            {/* DARK MODE TOGGLE */}
+            <button className="btn-press" onClick={()=>setDark(d=>!d)} style={{background:"rgba(255,255,255,.15)",borderRadius:20,padding:"4px 10px",border:"none",cursor:"pointer"}}>
+              <span style={{fontSize:14,color:"#FFF"}}>{dark?"☀️":"🌙"}</span>
+            </button>
+          </div>
+          <h1 className="text-2xl leading-tight relative z-10" style={{fontFamily:F_D,fontWeight:700,color:"#FFF"}}>LIGA FEMENINA<br/>DE MAXI HANDBALL</h1>
+        </div>
+
+        {modoDemo&&!cargando&&<div className="px-4 py-2 text-center text-xs" style={{background:"#FBEFD2",color:"#8A6300",fontFamily:F_B}}>Datos de ejemplo.</div>}
+
+        {/* TABS */}
+        <div className="flex px-4 pt-3 pb-2 gap-1" style={{background:theme.card,borderBottom:`0.5px solid ${theme.border}`,transition:"background .3s"}}>
+          {TABS.map(tb=>{const a=tab===tb.key;return(
+            <button key={tb.key} onClick={()=>setTab(tb.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg btn-press"
+              style={{background:a?ACCENT:"transparent",color:a?"#FFF":theme.textMut,transition:"background .2s,color .2s"}}>
+              <span className="text-sm">{tb.icon}</span>
+              <span className="text-[10px]" style={{fontFamily:F_B,fontWeight:500}}>{tb.label}</span>
+            </button>)})}
+        </div>
+
+        {/* CONTENT */}
+        <div className="flex-1" style={{transition:"background .3s"}}>
+          {cargando&&<Skeleton/>}
+          {!cargando&&tab==="tabla"&&<VistaTabla equipos={equipos} jugadoras={jugadoras} partidos={partidos} config={config} isDark={dark}/>}
+          {!cargando&&tab==="fixture"&&<VistaFixture equipos={equipos} jugadoras={jugadoras} partidos={partidos} goles={goles} config={config} isDark={dark}/>}
+          {!cargando&&tab==="goleadoras"&&<VistaGoleadoras goleadoras={goleadoras} jugadoras={jugadoras} partidos={partidos} equipos={equipos} config={config} isDark={dark}/>}
+          {!cargando&&tab==="noticias"&&<VistaNoticias noticias={noticias} onAbrir={setNa}/>}
+        </div>
+
+        {/* FOOTER */}
+        <div className="px-4 py-3 text-center" style={{fontFamily:F_B}}>
+          <span className="text-[10px] block mb-2" style={{color:theme.textMut}}>SITAS · Sociedad Italiana de Tiro al Blanco</span>
+          <a href="https://drive.google.com/file/d/1TUIb93cEgvbQSl1l4mTAaQi6tN5jSkmB/view" target="_blank" rel="noopener noreferrer"
+            className="inline-block text-[11px] px-3 py-1.5 rounded-lg btn-press" style={{background:ACCENT,color:"#FFF",fontWeight:600,textDecoration:"none"}}>
+            📋 VER REGLAMENTO
+          </a>
+          {config.SponsorVisible==="SI"&&config.SponsorURL&&(
+            <div className="mt-3"><a href={config.SponsorLink||"#"} target="_blank" rel="noopener noreferrer">
+              <img src={config.SponsorURL} alt="Sponsor" className="mx-auto rounded-lg" style={{maxHeight:60,maxWidth:"100%",objectFit:"contain"}}/>
+            </a></div>)}
+        </div>
+      </div>
+      <ModalNoticia noticia={na} onCerrar={()=>setNa(null)}/>
+    </div>
+    </ThemeCtx.Provider>)}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("service-worker.js").catch(()=>{})})}</script>
+</body>
+</html>
