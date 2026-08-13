@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Liga Femenina de Maxi Handball</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#A91B60" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Maxi Handball" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    body { margin: 0; background: #E5E1D6; }
+    @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
+    .animate-ping { animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.API_URL = "https://script.google.com/macros/s/AKfycbykmKA9zP90dzDHCta9pkqycnabZubx1PR7G6gVFpuoUds-dWElMO592ilaDZX8zjLb/exec";
+  </script>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo } = React;
+
+    const TABS = [
+      { key: "tabla", label: "Tabla", icon: "🏆" },
+      { key: "fixture", label: "Fixture", icon: "📅" },
+      { key: "goleadoras", label: "Goles", icon: "🎯" },
+      { key: "noticias", label: "Noticias", icon: "📰" },
+    ];
+
+    // Paleta principal: fucsia como color dominante
+    const C = { ink: "#A91B60", paper: "#F6F3EC", coral: "#E84C3D", gold: "#F2B705", teal: "#1B6B6B", line: "#E5E1D6", muted: "#6B7280", dark: "#12203B" };
+    const F_DISPLAY = "Oswald, sans-serif";
+    const F_BODY = "Inter, sans-serif";
+    const F_MONO = "'JetBrains Mono', monospace";
+
+    const TEMA = {
+      Verde:  { bg: "#166534", bgLight: "#dcfce7", accent: "#16a34a", label: "ZONA VERDE", icon: "🟢" },
+      Roja:   { bg: "#991b1b", bgLight: "#fee2e2", accent: "#dc2626", label: "ZONA ROJA", icon: "🔴" },
+      Oro:    { bg: "#92400e", bgLight: "#fef3c7", accent: "#d97706", label: "ZONA ORO", icon: "🥇" },
+      Plata:  { bg: "#475569", bgLight: "#f1f5f9", accent: "#64748b", label: "ZONA PLATA", icon: "🥈" },
+    };
+
+    // ---- HELPERS ----
+    function jsonp(url) {
+      return new Promise((resolve, reject) => {
+        const cb = "cb_" + Math.random().toString(36).slice(2);
+        const s = document.createElement("script");
+        window[cb] = (d) => { resolve(d); delete window[cb]; s.remove(); };
+        s.onerror = () => { reject(new Error("API error")); delete window[cb]; s.remove(); };
+        const sep = url.includes("?") ? "&" : "?";
+        s.src = url + sep + "callback=" + cb + "&_ts=" + Date.now();
+        document.body.appendChild(s);
+      });
+    }
+
+    // Convierte "2026-07-04" o "2026-07-04T03:00:00.000Z" a "04/07/26"
+    function fechaCorta(f) {
+      if (!f) return "";
+      const s = String(f).slice(0, 10); // "2026-07-04"
+      const partes = s.split("-");
+      if (partes.length !== 3) return s;
+      return partes[2] + "/" + partes[1] + "/" + partes[0].slice(2);
+    }
+
+    function equipoPorId(equipos, id) {
+      return equipos.find((e) => e.ID_Equipo === id) || { Nombre: id, Zona: "" };
+    }
+
+    // URL de foto de Drive: convierte el link del form a thumbnail visible
+    function fotoDrive(url) {
+      if (!url) return null;
+      const match = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) return "https://lh3.googleusercontent.com/d/" + match[1];
+      return url;
+    }
+
+    // ---- HOOK DE DATOS (con caché local para carga instantánea) ----
+    function parsearConfig(d) {
+      const cfg = {};
+      (d.configuracion || []).forEach((c) => { cfg[c.Clave] = c.Valor; });
+      return { cargando: false, modoDemo: false, equipos: d.equipos || [], jugadoras: d.jugadoras || [], partidos: d.partidos || [], goles: d.goles || [], goleadoras: d.goleadoras || [], noticias: d.noticias || [], config: cfg };
+    }
+
+    function useDatosTorneo() {
+      // Intentar cargar datos cacheados al instante (carga percibida = 0s)
+      const cached = (() => { try { const c = localStorage.getItem("torneo_cache"); return c ? parsearConfig(JSON.parse(c)) : null; } catch { return null; } })();
+      const [estado, setEstado] = useState(cached || { cargando: true, modoDemo: false, equipos: [], jugadoras: [], partidos: [], goles: [], goleadoras: [], noticias: [], config: {} });
+
+      useEffect(() => {
+        const url = window.API_URL;
+        if (!url || url.includes("PEGAR_AQUI")) { setEstado((e) => ({ ...e, cargando: false, modoDemo: true })); return; }
+        jsonp(`${url}?recurso=todo`)
+          .then((d) => {
+            try { localStorage.setItem("torneo_cache", JSON.stringify(d)); } catch {}
+            setEstado(parsearConfig(d));
+          })
+          .catch(() => { if (!cached) setEstado((e) => ({ ...e, cargando: false, modoDemo: true })); });
+      }, []);
+      return estado;
+    }
+
+    // ---- CÁLCULO DE POSICIONES ----
+    function calcularPosiciones(equiposFiltrados, partidosFiltrados, config) {
+      const ptsV = Number(config.PuntosVictoria) || 3;
+      const ptsE = Number(config.PuntosEmpate) || 2;
+      const ptsD = Number(config.PuntosDerrota) || 1;
+
+      return equiposFiltrados.map((eq) => {
+        const propios = partidosFiltrados.filter((p) => p.Jugado === "SI" && (p.ID_EquipoLocal === eq.ID_Equipo || p.ID_EquipoVisitante === eq.ID_Equipo));
+        let pg = 0, pe = 0, pp = 0, gf = 0, gc = 0;
+        const forma = [];
+        propios.slice().sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha)).forEach((p) => {
+          const esLocal = p.ID_EquipoLocal === eq.ID_Equipo;
+          const gp = Number(esLocal ? p.GolesLocal : p.GolesVisitante);
+          const gr = Number(esLocal ? p.GolesVisitante : p.GolesLocal);
+          gf += gp; gc += gr;
+          if (gp > gr) { pg++; forma.push("G"); }
+          else if (gp === gr) { pe++; forma.push("E"); }
+          else { pp++; forma.push("P"); }
+        });
+        return { ...eq, pj: propios.length, pg, pe, pp, gf, gc, dg: gf - gc, pts: pg * ptsV + pe * ptsE + pp * ptsD, racha: forma.slice(-5).reverse() };
+      }).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf);
+    }
+
+    // ---- MODAL: PLANTEL DEL EQUIPO ----
+    function ModalEquipo({ equipo, jugadoras, onCerrar }) {
+      if (!equipo) return null;
+      const miembros = jugadoras.filter((j) => (j.ID_Equipo || "").toLowerCase() === (equipo.ID_Equipo || "").toLowerCase());
+      // Jugadoras ordenadas por dorsal numérico, DT siempre al final
+      const esDT = (j) => String(j.Dorsal).toUpperCase() === "DT";
+      const plantilla = [
+        ...miembros.filter((j) => !esDT(j)).sort((a, b) => Number(a.Dorsal) - Number(b.Dorsal)),
+        ...miembros.filter((j) => esDT(j)),
+      ];
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onCerrar}>
+          <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                {fotoDrive(equipo.Escudo_URL) && <img src={fotoDrive(equipo.Escudo_URL)} alt="" className="w-8 h-8 rounded-full" style={{ objectFit: "cover" }} />}
+                <h3 style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.ink, fontSize: 20 }}>{equipo.Nombre}</h3>
+              </div>
+              <button onClick={onCerrar} style={{ color: C.muted, fontSize: 18 }}>✕</button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {plantilla.map((j) => {
+                const foto = fotoDrive(j.Foto_URL);
+                const dt = esDT(j);
+                return (
+                  <div key={j.ID_Jugadora} className="rounded-xl p-2 text-center" style={{ background: dt ? "#FDF2F8" : C.paper, border: `1px solid ${dt ? C.ink + "33" : C.line}` }}>
+                    {foto ? (
+                      <img src={foto} alt="" className="w-14 h-14 rounded-full mx-auto mb-1.5" style={{ objectFit: "cover", border: `2px solid ${C.ink}` }} />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xl" style={{ background: C.line, color: C.muted }}>{dt ? "👔" : "👤"}</div>
+                    )}
+                    <div className="text-xs font-medium leading-tight" style={{ color: C.dark }}>{j.Nombre}</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: dt ? C.ink : C.muted, fontWeight: 700 }}>
+                      {dt ? "DT" : `#${j.Dorsal}`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {plantilla.length === 0 && <p className="text-sm text-center py-4" style={{ color: C.muted }}>No hay jugadoras cargadas para este equipo.</p>}
+          </div>
+        </div>
+      );
+    }
+
+    // ---- COMPONENTE: TABLA DE UN GRUPO ----
+    function TablaGrupo({ tema, posiciones, onEquipoClick }) {
+      const t = TEMA[tema] || TEMA.Verde;
+      return (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span>{t.icon}</span>
+            <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded" style={{ background: t.bg, color: "#FFF", fontFamily: F_BODY }}>{t.label}</span>
+          </div>
+          <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.line}` }}>
+            <table className="w-full text-sm" style={{ fontFamily: F_MONO }}>
+              <thead>
+                <tr style={{ background: t.bg, color: "#FFF" }}>
+                  <th className="text-left py-2 px-2 font-normal" style={{ fontFamily: F_BODY }}>Equipo</th>
+                  <th className="px-2">PJ</th><th className="px-2">PG</th><th className="px-2">PE</th>
+                  <th className="px-2">PP</th><th className="px-2">DG</th><th className="px-2">Pts</th>
+                  <th className="px-2 text-left" style={{ fontFamily: F_BODY }}>Forma</th>
+                </tr>
+              </thead>
+              <tbody>
+                {posiciones.map((eq, i) => (
+                  <tr key={eq.ID_Equipo} style={{ background: i % 2 === 0 ? "#FFF" : t.bgLight, borderTop: `1px solid ${C.line}` }}>
+                    <td className={`py-2 px-2 font-medium ${onEquipoClick ? "cursor-pointer" : ""}`} onClick={() => onEquipoClick && onEquipoClick(eq)} style={{ fontFamily: F_BODY, color: C.ink }}>
+                      <div className="flex items-center gap-1.5">
+                        {fotoDrive(eq.Escudo_URL) ? <img src={fotoDrive(eq.Escudo_URL)} alt="" className="w-5 h-5 rounded-full" style={{ objectFit: "cover" }} /> : null}
+                        {eq.Nombre}
+                      </div>
+                    </td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pj}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pg}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pe}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.pp}</td>
+                    <td className="text-center px-2" style={{ color: C.dark }}>{eq.dg > 0 ? `+${eq.dg}` : eq.dg}</td>
+                    <td className="text-center px-2 font-bold" style={{ color: t.accent }}>{eq.pts}</td>
+                    <td className="px-2"><div className="flex gap-1">
+                      {eq.racha.length === 0 && <span style={{ color: "#9CA3AF" }}>—</span>}
+                      {eq.racha.map((r, idx) => (
+                        <span key={idx} className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                          style={{ background: r === "G" ? "#2E8B57" : r === "E" ? C.gold : "#A8324A", color: "#FFF" }}>{r}</span>
+                      ))}
+                    </div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- VISTA: TABLA CON FASES ----
+    function VistaTabla({ equipos, jugadoras, partidos, config }) {
+      const etapaActual = Number(config.EtapaActual) || 1;
+      const [equipoModal, setEquipoModal] = useState(null);
+      const mostrarPlantel = config.MostrarPlantel !== "NO";
+
+      const partidosFase1 = partidos.filter((p) => String(p.Etapa) === "1");
+      const partidosFase2 = partidos.filter((p) => String(p.Etapa) === "2");
+      const posVerdes = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Zona === "Verde"), partidosFase1, config), [equipos, partidos, config]);
+      const posRojos = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Zona === "Roja"), partidosFase1, config), [equipos, partidos, config]);
+      const posOro = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Liga === "Oro"), partidosFase2, config), [equipos, partidos, config]);
+      const posPlata = useMemo(() => calcularPosiciones(equipos.filter((e) => e.Liga === "Plata"), partidosFase2, config), [equipos, partidos, config]);
+      const hayFase2 = etapaActual >= 2 && (posOro.length > 0 || posPlata.length > 0);
+
+      return (
+        <div className="px-4 pb-6">
+          {hayFase2 && (
+            <div className="mb-4">
+              <div className="text-center mb-3">
+                <span className="block text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg" style={{ background: C.ink, color: "#FFF", fontFamily: F_BODY }}>FASE 2 — ZONAS</span>
+              </div>
+              {posOro.length > 0 && <TablaGrupo tema="Oro" posiciones={posOro} onEquipoClick={mostrarPlantel ? setEquipoModal : null} />}
+              {posPlata.length > 0 && <TablaGrupo tema="Plata" posiciones={posPlata} onEquipoClick={mostrarPlantel ? setEquipoModal : null} />}
+            </div>
+          )}
+          <div>
+            <div className="text-center mb-3">
+              <span className="block text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg" style={{ background: etapaActual >= 2 ? C.muted : C.ink, color: "#FFF", fontFamily: F_BODY }}>
+                {etapaActual >= 2 ? "FASE 1 — FINALIZADA" : "FASE 1 — CLASIFICACIÓN"}
+              </span>
+            </div>
+            {posVerdes.length > 0 && <TablaGrupo tema="Verde" posiciones={posVerdes} onEquipoClick={mostrarPlantel ? setEquipoModal : null} />}
+            {posRojos.length > 0 && <TablaGrupo tema="Roja" posiciones={posRojos} onEquipoClick={mostrarPlantel ? setEquipoModal : null} />}
+          </div>
+          <p className="text-xs mt-3 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>
+            {mostrarPlantel && "Tocá el nombre de un equipo para ver su plantel. "}<strong>Forma</strong>: últimos 5 partidos —
+            <span style={{ color: "#2E8B57", fontWeight: 600 }}> G</span> ganado ({config.PuntosVictoria || 3} pts),
+            <span style={{ color: C.gold, fontWeight: 600 }}> E</span> empate ({config.PuntosEmpate || 2} pts),
+            <span style={{ color: "#A8324A", fontWeight: 600 }}> P</span> perdido ({config.PuntosDerrota || 1} pt).
+          </p>
+          <ModalEquipo equipo={equipoModal} jugadoras={jugadoras} onCerrar={() => setEquipoModal(null)} />
+        </div>
+      );
+    }
+
+    // ---- MODAL: DETALLE DE PARTIDO (goleadoras del partido) ----
+    function ModalPartido({ partido, equipos, jugadoras, goles, onCerrar }) {
+      if (!partido || partido.Jugado !== "SI") return null;
+      const local = equipoPorId(equipos, partido.ID_EquipoLocal);
+      const visitante = equipoPorId(equipos, partido.ID_EquipoVisitante);
+
+      // Filtrar goles de este partido y cruzar con jugadoras
+      const golesPartido = (goles || []).filter((g) => String(g.ID_Partido).toLowerCase() === String(partido.ID_Partido).toLowerCase());
+      const conDatos = golesPartido.map((g) => {
+        const j = (jugadoras || []).find((x) => (x.ID_Jugadora || "").toLowerCase() === (g.ID_Jugadora || "").toLowerCase());
+        return { ...g, nombre: j ? j.Nombre : g.ID_Jugadora, idEquipo: j ? j.ID_Equipo : "", foto: j ? fotoDrive(j.Foto_URL) : null };
+      }).filter((g) => Number(g.Cantidad_Goles) > 0);
+
+      const golesLocal = conDatos.filter((g) => (g.idEquipo || "").toLowerCase() === (partido.ID_EquipoLocal || "").toLowerCase()).sort((a, b) => Number(b.Cantidad_Goles) - Number(a.Cantidad_Goles));
+      const golesVisitante = conDatos.filter((g) => (g.idEquipo || "").toLowerCase() === (partido.ID_EquipoVisitante || "").toLowerCase()).sort((a, b) => Number(b.Cantidad_Goles) - Number(a.Cantidad_Goles));
+
+      const buscarMVP = () => {
+        if (!partido.MVP_Partido) return null;
+        const j = (jugadoras || []).find((x) => (x.ID_Jugadora || "").toLowerCase() === String(partido.MVP_Partido).toLowerCase());
+        return j ? j.Nombre : null;
+      };
+      const mvpNombre = buscarMVP();
+
+      const ListaGoles = ({ lista, equipo }) => (
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 mb-2">
+            {fotoDrive(equipo.Escudo_URL) && <img src={fotoDrive(equipo.Escudo_URL)} alt="" className="w-5 h-5 rounded-full" style={{ objectFit: "cover" }} />}
+            <span className="text-xs font-bold" style={{ color: C.dark, fontFamily: F_BODY }}>{equipo.Nombre}</span>
+          </div>
+          {lista.length === 0 && <p className="text-[11px]" style={{ color: C.muted }}>Sin goles registrados</p>}
+          {lista.map((g, i) => (
+            <div key={i} className="flex items-center justify-between gap-1.5 mb-1">
+              <span className="text-xs" style={{ color: C.dark, fontFamily: F_BODY }}>⚽ {g.nombre}</span>
+              <span className="text-[11px] font-bold px-1.5 rounded flex-shrink-0" style={{ background: C.ink + "15", color: C.ink }}>{g.Cantidad_Goles}</span>
+            </div>
+          ))}
+        </div>
+      );
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onCerrar}>
+          <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs" style={{ color: C.muted }}>{fechaCorta(partido.Fecha)} · {partido.Hora}</span>
+              <button onClick={onCerrar} style={{ color: C.muted, fontSize: 18 }}>✕</button>
+            </div>
+            <div className="text-center mb-4">
+              <span className="text-2xl font-bold" style={{ fontFamily: F_MONO }}>
+                <span style={{ color: partido.GolesLocal > partido.GolesVisitante ? "#2E8B57" : C.dark }}>{partido.GolesLocal}</span>
+                <span style={{ color: C.muted }}> — </span>
+                <span style={{ color: partido.GolesVisitante > partido.GolesLocal ? "#2E8B57" : C.dark }}>{partido.GolesVisitante}</span>
+              </span>
+            </div>
+            <div className="flex gap-4 mb-3" style={{ borderTop: `1px solid ${C.line}`, paddingTop: 12 }}>
+              <ListaGoles lista={golesLocal} equipo={local} />
+              <div style={{ width: 1, background: C.line }} />
+              <ListaGoles lista={golesVisitante} equipo={visitante} />
+            </div>
+            {mvpNombre && (
+              <div className="text-center pt-2" style={{ borderTop: `1px solid ${C.line}` }}>
+                <span className="text-[11px]" style={{ color: C.muted }}>⭐ MVP: </span>
+                <span className="text-[11px] font-bold" style={{ color: C.ink }}>{mvpNombre}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ---- VISTA: FIXTURE ----
+    function VistaFixture({ equipos, jugadoras, partidos, goles, config }) {
+      const etapaActual = Number(config.EtapaActual) || 1;
+      const [etapaVista, setEtapaVista] = useState(etapaActual);
+      const gruposDisponibles = etapaVista === 1 ? ["Verde", "Roja"] : ["Oro", "Plata"];
+      const [grupoVista, setGrupoVista] = useState(gruposDisponibles[0]);
+      const cambiarEtapa = (e) => { setEtapaVista(e); setGrupoVista(e === 1 ? "Verde" : "Oro"); };
+      const [partidoDetalle, setPartidoDetalle] = useState(null);
+
+      const partidosFiltrados = partidos.filter((p) => {
+        if (String(p.Etapa) !== String(etapaVista)) return false;
+        const local = equipoPorId(equipos, p.ID_EquipoLocal);
+        return etapaVista === 1 ? local.Zona === grupoVista : local.Liga === grupoVista;
+      });
+      const jornadas = [...new Set(partidosFiltrados.map((p) => p.Jornada))].sort((a, b) => a - b);
+      const tema = TEMA[grupoVista] || TEMA.Verde;
+
+      const buscarMVP = (mvpId) => {
+        if (!mvpId) return null;
+        const j = (jugadoras || []).find((x) => (x.ID_Jugadora || "").toLowerCase() === String(mvpId).toLowerCase());
+        if (!j) return null;
+        const eq = equipoPorId(equipos, j.ID_Equipo);
+        return { nombre: j.Nombre, equipo: eq.Nombre };
+      };
+
+      return (
+        <div className="px-4 pb-6">
+          <div className="flex gap-2 mb-3">
+            <button onClick={() => cambiarEtapa(1)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 1 ? C.ink : "#FFF", color: etapaVista === 1 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>FASE 1 — ZONAS</button>
+            {etapaActual >= 2 && (
+              <button onClick={() => cambiarEtapa(2)} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: etapaVista === 2 ? C.ink : "#FFF", color: etapaVista === 2 ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>FASE 2 — ZONAS</button>
+            )}
+          </div>
+          <div className="flex gap-2 mb-4">
+            {gruposDisponibles.map((g) => {
+              const t = TEMA[g]; const activo = grupoVista === g;
+              return (
+                <button key={g} onClick={() => setGrupoVista(g)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold"
+                  style={{ background: activo ? t.bg : "#FFF", color: activo ? "#FFF" : t.accent, border: `2px solid ${t.accent}`, fontFamily: F_BODY }}>
+                  {t.icon} {t.label}
+                </button>
+              );
+            })}
+          </div>
+          {jornadas.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos cargados en esta zona.</p>}
+          <div className="space-y-6">
+            {jornadas.map((j) => (
+              <div key={j}>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded inline-block mb-2" style={{ background: tema.bg, color: "#FFF", fontFamily: F_BODY }}>{tema.icon} FECHA {j}</span>
+                <div className="space-y-2">
+                  {partidosFiltrados.filter((p) => p.Jornada === j).map((p) => {
+                    const local = equipoPorId(equipos, p.ID_EquipoLocal);
+                    const visitante = equipoPorId(equipos, p.ID_EquipoVisitante);
+                    const mvp = p.Jugado === "SI" ? buscarMVP(p.MVP_Partido) : null;
+                    return (
+                      <div key={p.ID_Partido} className={`rounded-xl px-4 py-3 ${p.Jugado === "SI" ? "cursor-pointer" : ""}`} onClick={() => p.Jugado === "SI" && setPartidoDetalle(p)} style={{ background: "#FFF", border: `2px solid ${tema.accent}22` }}>
+                        <div className="flex items-center justify-between">
+                          <div style={{ fontFamily: F_BODY }}>
+                            <div className="text-sm font-medium" style={{ color: C.dark }}>
+                            <span className="inline-flex items-center gap-1">
+                              {fotoDrive(local.Escudo_URL) && <img src={fotoDrive(local.Escudo_URL)} alt="" className="w-4 h-4 rounded-full flex-shrink-0" style={{ objectFit: "cover" }} />}
+                              {local.Nombre}
+                            </span>
+                            {" vs "}
+                            <span className="inline-flex items-center gap-1">
+                              {fotoDrive(visitante.Escudo_URL) && <img src={fotoDrive(visitante.Escudo_URL)} alt="" className="w-4 h-4 rounded-full flex-shrink-0" style={{ objectFit: "cover" }} />}
+                              {visitante.Nombre}
+                            </span>
+                          </div>
+                            <div className="text-xs" style={{ color: C.muted }}>{p.Cancha} · {p.Hora} · {fechaCorta(p.Fecha)}</div>
+                          </div>
+                          {p.Jugado === "SI" ? (
+                            <span className="text-lg font-bold" style={{ fontFamily: F_MONO }}>
+                              <span style={{ color: p.GolesLocal > p.GolesVisitante ? "#2E8B57" : C.dark }}>{p.GolesLocal}</span>
+                              <span style={{ color: C.dark }}>-</span>
+                              <span style={{ color: p.GolesVisitante > p.GolesLocal ? "#2E8B57" : C.dark }}>{p.GolesVisitante}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-1 rounded" style={{ background: tema.bgLight, color: tema.accent, fontFamily: F_BODY, fontWeight: 600 }}>PENDIENTE</span>
+                          )}
+                        </div>
+                        {mvp && (
+                          <div className="mt-1.5 flex items-center gap-1.5" style={{ fontFamily: F_BODY }}>
+                            <span className="text-[10px]">⭐</span>
+                            <span className="text-[11px]" style={{ color: C.ink, fontWeight: 600 }}>MVP: {mvp.nombre}</span>
+                            <span className="text-[10px]" style={{ color: C.muted }}>({mvp.equipo})</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <ModalPartido partido={partidoDetalle} equipos={equipos} jugadoras={jugadoras} goles={goles} onCerrar={() => setPartidoDetalle(null)} />
+        </div>
+      );
+    }
+
+    // ---- VISTA: GOLEADORAS ----
+    function VistaGoleadoras({ goleadoras, jugadoras, partidos, equipos, config }) {
+      const etapaActual = Number(config.EtapaActual) || 1;
+      const [grupoVista, setGrupoVista] = useState("Verde");
+      const gruposDisponibles = etapaActual >= 2 ? ["Verde", "Roja", "Oro", "Plata"] : ["Verde", "Roja"];
+
+      // Filtrar goleadoras por zona/liga del equipo
+      const goleadorasFiltradas = goleadoras.filter((g) => {
+        const eq = (equipos || []).find((e) => e.Nombre === g.Equipo);
+        if (!eq) return false;
+        if (grupoVista === "Verde" || grupoVista === "Roja") return eq.Zona === grupoVista;
+        return eq.Liga === grupoVista;
+      });
+
+      const conGoles = goleadorasFiltradas.filter((g) => g.Goles_Totales > 0);
+      const ranking = [...conGoles].sort((a, b) => b.Goles_Totales - a.Goles_Totales || (a.Nombre || "").localeCompare(b.Nombre || ""));
+      const max = ranking[0]?.Goles_Totales || 1;
+      const mvpCount = {};
+      (partidos || []).forEach((p) => { if (p.Jugado === "SI" && p.MVP_Partido) { const id = String(p.MVP_Partido).toUpperCase(); mvpCount[id] = (mvpCount[id] || 0) + 1; } });
+
+      // Buscar foto de la jugadora cruzando con la hoja Jugadoras
+      const buscarFoto = (idJugadora) => {
+        const j = (jugadoras || []).find((x) => (x.ID_Jugadora || "").toLowerCase() === (idJugadora || "").toLowerCase());
+        return j ? fotoDrive(j.Foto_URL) : null;
+      };
+
+      if (ranking.length === 0) return (
+        <div className="px-4 pb-6">
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {gruposDisponibles.map((g) => { const t = TEMA[g]; const activo = grupoVista === g; return (
+              <button key={g} onClick={() => setGrupoVista(g)} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold"
+                style={{ background: activo ? t.bg : "#FFF", color: activo ? "#FFF" : t.accent, border: `2px solid ${t.accent}`, fontFamily: F_BODY, minWidth: "45%" }}>
+                {t.icon} {t.label}
+              </button>
+            ); })}
+          </div>
+          <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>Todavía no hay goles registrados en esta zona.</p>
+        </div>
+      );
+
+      return (
+        <div className="px-4 pb-6">
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {gruposDisponibles.map((g) => { const t = TEMA[g]; const activo = grupoVista === g; return (
+              <button key={g} onClick={() => setGrupoVista(g)} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold"
+                style={{ background: activo ? t.bg : "#FFF", color: activo ? "#FFF" : t.accent, border: `2px solid ${t.accent}`, fontFamily: F_BODY, minWidth: "45%" }}>
+                {t.icon} {t.label}
+              </button>
+            ); })}
+          </div>
+          <div className="space-y-2">
+          {ranking.map((g, i) => {
+            const mvps = mvpCount[String(g.ID_Jugadora).toUpperCase()] || 0;
+            const esTop3 = i < 3;
+            const foto = esTop3 ? buscarFoto(g.ID_Jugadora) : null;
+            const medalColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+            return (
+              <div key={g.ID_Jugadora || g.Nombre} className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "#FFF", border: esTop3 ? `2px solid ${medalColors[i]}44` : `1px solid ${C.line}` }}>
+                <div className="flex flex-col items-center" style={{ minWidth: 32 }}>
+                  {esTop3 && foto ? (
+                    <img src={foto} alt="" className="w-9 h-9 rounded-full mb-0.5" style={{ objectFit: "cover", border: `2px solid ${medalColors[i]}` }} />
+                  ) : esTop3 ? (
+                    <div className="w-9 h-9 rounded-full mb-0.5 flex items-center justify-center text-sm" style={{ background: C.line, color: C.muted, border: `2px solid ${medalColors[i]}` }}>👤</div>
+                  ) : null}
+                  <span className="text-sm font-bold text-center" style={{ fontFamily: F_MONO, color: esTop3 ? medalColors[i] : "#9CA3AF" }}>{i + 1}</span>
+                </div>
+                <div className="flex-1" style={{ fontFamily: F_BODY }}>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium" style={{ color: C.dark }}>{g.Nombre}</span>
+                    {mvps > 0 && <span className="text-xs" style={{ color: C.gold }}>{"🏆".repeat(Math.min(mvps, 5))}{mvps > 5 ? `+${mvps - 5}` : ""}</span>}
+                  </div>
+                  <div className="text-xs" style={{ color: C.muted }}>{g.Equipo}</div>
+                  <div className="h-1.5 rounded-full mt-1.5" style={{ background: C.paper }}>
+                    <div className="h-1.5 rounded-full" style={{ width: `${(g.Goles_Totales / max) * 100}%`, background: C.ink }} />
+                  </div>
+                </div>
+                <span className="text-xl font-bold" style={{ fontFamily: F_MONO, color: C.ink }}>{g.Goles_Totales}</span>
+              </div>
+            );
+          })}
+          <p className="text-xs mt-2 px-1" style={{ color: C.muted, fontFamily: F_BODY }}>🏆 = MVP de partido</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- VISTA: NOTICIAS ----
+    function VistaNoticias({ noticias, onAbrir }) {
+      return (
+        <div className="px-4 pb-6 space-y-3">
+          {noticias.length === 0 && <p className="text-sm text-center py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay noticias publicadas.</p>}
+          {noticias.map((n) => (
+            <button key={n.ID_Noticia} onClick={() => onAbrir(n)} className="w-full text-left rounded-xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
+              <div style={{ fontFamily: F_BODY }}>
+                <div className="text-[10px] mb-0.5" style={{ color: "#BCBCBC" }}>{fechaCorta(n.Fecha)}</div>
+                <div className="text-sm font-medium" style={{ color: C.dark }}>{n.Titulo}</div>
+              </div>
+              <span style={{ color: "#9CA3AF" }}>›</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    function ModalNoticia({ noticia, onCerrar }) {
+      const [imagenCompleta, setImagenCompleta] = useState(false);
+      if (!noticia) return null;
+      if (imagenCompleta && noticia.Imagen_URL) {
+        const imgUrl = fotoDrive(noticia.Imagen_URL) || noticia.Imagen_URL;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => setImagenCompleta(false)}>
+            <img src={imgUrl} alt="" style={{ maxWidth: "95%", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }} />
+            <button className="absolute top-4 right-4" onClick={() => setImagenCompleta(false)} style={{ color: "#FFF", fontSize: 24 }}>✕</button>
+          </div>
+        );
+      }
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onCerrar}>
+          <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF", fontFamily: F_BODY, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs" style={{ color: "#9CA3AF" }}>{fechaCorta(noticia.Fecha)}</span>
+              <button onClick={onCerrar} style={{ color: C.muted }}>✕</button>
+            </div>
+            {noticia.Imagen_URL && <img src={fotoDrive(noticia.Imagen_URL) || noticia.Imagen_URL} alt="" className="w-full rounded-lg mb-3 cursor-pointer" onClick={() => setImagenCompleta(true)} style={{ maxHeight: 200, objectFit: "cover" }} />}
+            <h3 className="text-lg font-bold mb-2" style={{ color: C.dark }}>{noticia.Titulo}</h3>
+            <p className="text-sm leading-relaxed" style={{ color: "#374151" }}>{noticia.Texto}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- APP PRINCIPAL ----
+    function App() {
+      const [tab, setTab] = useState("tabla");
+      const [noticiaAbierta, setNoticiaAbierta] = useState(null);
+      const { cargando, modoDemo, equipos, jugadoras, partidos, goles, goleadoras, noticias, config } = useDatosTorneo();
+
+      return (
+        <div className="min-h-screen flex justify-center" style={{ background: "#E5E1D6" }}>
+          <div className="w-full max-w-sm flex flex-col" style={{ background: C.paper, minHeight: "100vh" }}>
+            <div className="px-4 pt-5 pb-4" style={{ background: C.ink }}>
+              <div className="flex items-center gap-2 mb-1">
+                <img src="icons/icon-192.png" alt="" className="w-8 h-8 rounded-full" style={{ border: "2px solid rgba(255,255,255,0.3)" }} />
+                <span className="text-[10px] tracking-[0.2em] uppercase" style={{ color: "#FFF", fontFamily: F_BODY, opacity: 0.8 }}>Temporada 2026</span>
+              </div>
+              <h1 className="text-2xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: "#FFF" }}>LIGA FEMENINA<br />DE MAXI HANDBALL</h1>
+            </div>
+
+            {modoDemo && !cargando && (
+              <div className="px-4 py-2 text-center text-xs" style={{ background: "#FBEFD2", color: "#8A6300", fontFamily: F_BODY }}>Mostrando datos de ejemplo.</div>
+            )}
+
+            <div className="flex px-4 pt-4 pb-3 gap-1">
+              {TABS.map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
+                  style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? "#FFF" : C.muted }}>
+                  <span>{t.icon}</span>
+                  <span className="text-[10px]" style={{ fontFamily: F_BODY, fontWeight: 500 }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1">
+              {cargando && <p className="px-4 py-6 text-sm text-center" style={{ fontFamily: F_BODY, color: C.muted }}>Cargando...</p>}
+              {!cargando && tab === "tabla" && <VistaTabla equipos={equipos} jugadoras={jugadoras} partidos={partidos} config={config} />}
+              {!cargando && tab === "fixture" && <VistaFixture equipos={equipos} jugadoras={jugadoras} partidos={partidos} goles={goles} config={config} />}
+              {!cargando && tab === "goleadoras" && <VistaGoleadoras goleadoras={goleadoras} jugadoras={jugadoras} partidos={partidos} equipos={equipos} config={config} />}
+              {!cargando && tab === "noticias" && <VistaNoticias noticias={noticias} onAbrir={setNoticiaAbierta} />}
+            </div>
+
+            <div className="px-4 py-3 text-center" style={{ fontFamily: F_BODY }}>
+              <span className="text-[10px] block mb-2" style={{ color: "#9CA3AF" }}>SITAS · Sociedad Italiana de Tiro al Blanco</span>
+              <a href="https://drive.google.com/file/d/1TUIb93cEgvbQSl1l4mTAaQi6tN5jSkmB/view" target="_blank" rel="noopener noreferrer"
+                className="inline-block text-[11px] px-3 py-1.5 rounded-lg" style={{ background: C.ink, color: "#FFF", fontWeight: 600, textDecoration: "none" }}>
+                📋 VER REGLAMENTO
+              </a>
+              {config.SponsorVisible === "SI" && config.SponsorURL && (
+                <div className="mt-3">
+                  <a href={config.SponsorLink || "#"} target="_blank" rel="noopener noreferrer">
+                    <img src={config.SponsorURL} alt="Sponsor" className="mx-auto rounded-lg" style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain" }} />
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+          <ModalNoticia noticia={noticiaAbierta} onCerrar={() => setNoticiaAbierta(null)} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => { navigator.serviceWorker.register("service-worker.js").catch(() => {}); });
+    }
+  </script>
+</body>
+</html>
