@@ -134,18 +134,26 @@
 
     function VistaResultados({ partidos, equipos, jugadoras, onGuardar, cargando }) {
       const pendientes = partidos.filter((p) => p.Jugado !== "SI");
-      const [idPartido, setIdPartido] = useState(pendientes[0]?.ID_Partido || "");
+      const [idPartido, setIdPartido] = useState("");
       const [golesLocal, setGolesLocal] = useState("");
       const [golesVisitante, setGolesVisitante] = useState("");
       const [mvp, setMvp] = useState("");
+
+      // Sincronizar idPartido cuando cambian los datos
+      useEffect(() => {
+        if (pendientes.length > 0 && (!idPartido || !pendientes.find(p => p.ID_Partido === idPartido))) {
+          setIdPartido(pendientes[0].ID_Partido);
+        }
+      }, [partidos]);
+
       const partido = partidos.find((p) => p.ID_Partido === idPartido);
-      const nombre = (id) => equipos.find((e) => e.ID_Equipo === id)?.Nombre || id;
+      const nombre = (id) => equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (id || "").toLowerCase())?.Nombre || id;
       const disponibles = partido ? jugadoras.filter((j) => (j.ID_Equipo || "").toLowerCase() === (partido.ID_EquipoLocal || "").toLowerCase() || (j.ID_Equipo || "").toLowerCase() === (partido.ID_EquipoVisitante || "").toLowerCase()) : [];
 
       if (pendientes.length === 0) return <p className="px-4 py-6 text-sm" style={{ fontFamily: F_BODY, color: C.muted }}>No quedan partidos pendientes.</p>;
 
       return (
-        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
+        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
           <Campo label="Partido pendiente">
             <select style={estiloInput} value={idPartido} onChange={(e) => setIdPartido(e.target.value)}>
               {pendientes.map((p) => <option key={p.ID_Partido} value={p.ID_Partido}>Fecha {p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
@@ -364,9 +372,15 @@
         return null;
       }
 
-      // Iniciar cámara: primero activa el estado para que React renderice el video
+      const soportaScanner = "BarcodeDetector" in window;
+
+      // Iniciar cámara: primero verifica soporte
       function iniciarScanner() {
         setErrorCam("");
+        if (!soportaScanner) {
+          setErrorCam("Tu navegador no soporta escaneo de códigos de barras (iOS Safari no lo soporta). Usá Chrome en Android para escanear, o ingresá el DNI manualmente abajo.");
+          return;
+        }
         setEscaneando(true);
         setCamaraLista(false);
       }
@@ -401,8 +415,6 @@
                   }
                 } catch {}
               }, 800);
-            } else {
-              setErrorCam("Tu navegador no soporta escaneo automático. Usá la búsqueda manual debajo.");
             }
           } catch (err) {
             setErrorCam("No se pudo acceder a la cámara. Verificá los permisos del navegador.");
@@ -471,8 +483,8 @@
           <div className="mb-3">
             {!escaneando ? (
               <button type="button" onClick={iniciarScanner} className="w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
-                style={{ background: C.ink, color: C.gold, fontFamily: F_BODY }}>
-                📷 ESCANEAR DNI
+                style={{ background: soportaScanner ? C.ink : C.muted, color: soportaScanner ? C.gold : "#FFF", fontFamily: F_BODY }}>
+                📷 {soportaScanner ? "ESCANEAR DNI" : "ESCANEAR DNI (solo Chrome Android)"}
               </button>
             ) : (
               <div>
