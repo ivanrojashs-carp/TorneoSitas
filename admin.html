@@ -101,8 +101,9 @@
       );
     }
 
-    function ModalConfig({ abierto, onCerrar, apiUrl, setApiUrl, token, setToken, estadoConexion, onProbar }) {
+    function ModalConfig({ abierto, onCerrar, apiUrl, setApiUrl, token, setToken, estadoConexion, rol, onProbar }) {
       if (!abierto) return null;
+      const rolLabel = { total: "Acceso total", control: "Solo control", carga: "Solo carga" };
       return (
         <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(18,32,59,0.55)" }} onClick={onCerrar}>
           <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF" }} onClick={(e) => e.stopPropagation()}>
@@ -113,20 +114,18 @@
             <Campo label="URL de Apps Script (termina en /exec)">
               <input style={estiloInput} value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" />
             </Campo>
-            <Campo label="Token de administrador">
-              <input style={estiloInput} type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="el mismo que pusiste en ADMIN_TOKEN" />
+            <Campo label="Contraseña de acceso">
+              <input style={estiloInput} type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Ingresá tu clave de acceso" />
             </Campo>
             <div className="flex items-center gap-2 mb-3 text-xs" style={{ fontFamily: F_BODY }}>
-              {estadoConexion === "ok" && <span style={{ color: C.teal }}>✅ Conectado</span>}
-              {estadoConexion === "error" && <span style={{ color: C.coral }}>❌ No se pudo conectar</span>}
-              {estadoConexion === "demo" && <span style={{ color: C.muted }}>Modo demo — los cambios no se guardan en el Sheet</span>}
+              {estadoConexion === "ok" && rol && <span style={{ color: C.teal }}>✅ Conectado — {rolLabel[rol] || rol}</span>}
+              {estadoConexion === "ok" && !rol && <span style={{ color: C.teal }}>✅ Conectado</span>}
+              {estadoConexion === "error" && <span style={{ color: C.coral }}>❌ Token inválido o sin conexión</span>}
+              {estadoConexion === "demo" && <span style={{ color: C.muted }}>Ingresá tu clave para conectar</span>}
             </div>
             <button onClick={onProbar} className="w-full rounded-lg py-2.5" style={{ background: C.paper, color: C.ink, fontFamily: F_BODY, fontWeight: 600, border: `1px solid ${C.line}` }}>
-              Probar conexión
+              Conectar
             </button>
-            <p className="text-[11px] mt-3" style={{ color: C.muted, fontFamily: F_BODY }}>
-              La URL y el token quedan guardados en este navegador (localStorage), no hace falta pegarlos cada vez.
-            </p>
           </div>
         </div>
       );
@@ -174,29 +173,91 @@
       );
     }
 
-    function VistaFixture({ equipos, onGuardar, cargando }) {
+    function VistaFixture({ equipos, partidos, onGuardar, onEditar, cargando }) {
+      const [modo, setModo] = useState("crear");
+      // Crear
       const [jornada, setJornada] = useState("");
       const [fecha, setFecha] = useState("");
       const [hora, setHora] = useState("");
       const [cancha, setCancha] = useState("");
       const [idLocal, setIdLocal] = useState(equipos[0]?.ID_Equipo || "");
       const [idVisitante, setIdVisitante] = useState(equipos[1]?.ID_Equipo || "");
+      const [etapa, setEtapa] = useState("1");
+      // Editar
+      const pendientes = partidos.filter((p) => p.Jugado !== "SI");
+      const [idEditar, setIdEditar] = useState(pendientes[0]?.ID_Partido || "");
+      const [editFecha, setEditFecha] = useState("");
+      const [editHora, setEditHora] = useState("");
+      const [editCancha, setEditCancha] = useState("");
+
+      useEffect(() => {
+        if (pendientes.length > 0 && !idEditar) setIdEditar(pendientes[0].ID_Partido);
+      }, [partidos]);
+
+      const partidoEditar = partidos.find((p) => p.ID_Partido === idEditar);
+      useEffect(() => {
+        if (partidoEditar) {
+          setEditFecha(String(partidoEditar.Fecha || "").slice(0, 10));
+          setEditHora(String(partidoEditar.Hora || ""));
+          setEditCancha(String(partidoEditar.Cancha || ""));
+        }
+      }, [idEditar, partidos]);
+
+      const nombre = (id) => equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (id || "").toLowerCase())?.Nombre || id;
 
       return (
-        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora, cancha, idLocal, idVisitante }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); }); }}>
-          <Campo label="Fecha de torneo (jornada)"><input style={estiloInput} type="number" min="1" value={jornada} onChange={(e) => setJornada(e.target.value)} required /></Campo>
-          <div className="flex gap-3">
-            <Campo label="Fecha calendario"><input style={estiloInput} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></Campo>
-            <Campo label="Hora"><input style={estiloInput} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required /></Campo>
+        <div className="px-4 pb-6">
+          <div className="flex gap-2 mb-4">
+            <button type="button" onClick={() => setModo("crear")} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: modo === "crear" ? C.ink : "transparent", color: modo === "crear" ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>➕ CREAR</button>
+            <button type="button" onClick={() => setModo("editar")} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: modo === "editar" ? C.ink : "transparent", color: modo === "editar" ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>✏️ EDITAR</button>
           </div>
-          <Campo label="Cancha"><input style={estiloInput} value={cancha} onChange={(e) => setCancha(e.target.value)} placeholder="Cancha 1" required /></Campo>
-          <div className="flex gap-3">
-            <Campo label="Equipo local"><select style={estiloInput} value={idLocal} onChange={(e) => setIdLocal(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
-            <Campo label="Equipo visitante"><select style={estiloInput} value={idVisitante} onChange={(e) => setIdVisitante(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
-          </div>
-          {idLocal === idVisitante && <p className="text-xs mb-2" style={{ color: C.coral, fontFamily: F_BODY }}>Un equipo no puede jugar contra sí mismo.</p>}
-          <BotonGuardar cargando={cargando}>Agregar partido</BotonGuardar>
-        </form>
+
+          {modo === "crear" && (
+            <form onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora, cancha, idLocal, idVisitante, etapa }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); }); }}>
+              <div className="flex gap-3">
+                <Campo label="Jornada"><input style={estiloInput} type="number" min="1" value={jornada} onChange={(e) => setJornada(e.target.value)} required /></Campo>
+                <Campo label="Etapa">
+                  <select style={estiloInput} value={etapa} onChange={(e) => setEtapa(e.target.value)}>
+                    <option value="1">Fase 1</option><option value="2">Fase 2</option>
+                  </select>
+                </Campo>
+              </div>
+              <div className="flex gap-3">
+                <Campo label="Fecha"><input style={estiloInput} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></Campo>
+                <Campo label="Hora"><input style={estiloInput} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required /></Campo>
+              </div>
+              <Campo label="Cancha"><input style={estiloInput} value={cancha} onChange={(e) => setCancha(e.target.value)} placeholder="Cancha 1" required /></Campo>
+              <div className="flex gap-3">
+                <Campo label="Local"><select style={estiloInput} value={idLocal} onChange={(e) => setIdLocal(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
+                <Campo label="Visitante"><select style={estiloInput} value={idVisitante} onChange={(e) => setIdVisitante(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
+              </div>
+              {idLocal === idVisitante && <p className="text-xs mb-2" style={{ color: C.coral, fontFamily: F_BODY }}>Un equipo no puede jugar contra sí mismo.</p>}
+              <BotonGuardar cargando={cargando}>Agregar partido</BotonGuardar>
+            </form>
+          )}
+
+          {modo === "editar" && (
+            <form onSubmit={(e) => { e.preventDefault(); onEditar({ idPartido: idEditar, fecha: editFecha, hora: editHora, cancha: editCancha }); }}>
+              {pendientes.length === 0 ? (
+                <p className="text-sm py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos pendientes para editar.</p>
+              ) : (
+                <div>
+                  <Campo label="Partido a editar">
+                    <select style={estiloInput} value={idEditar} onChange={(e) => setIdEditar(e.target.value)}>
+                      {pendientes.map((p) => <option key={p.ID_Partido} value={p.ID_Partido}>F{p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
+                    </select>
+                  </Campo>
+                  <div className="flex gap-3">
+                    <Campo label="Fecha"><input style={estiloInput} type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} /></Campo>
+                    <Campo label="Hora"><input style={estiloInput} type="time" value={editHora} onChange={(e) => setEditHora(e.target.value)} /></Campo>
+                  </div>
+                  <Campo label="Cancha"><input style={estiloInput} value={editCancha} onChange={(e) => setEditCancha(e.target.value)} /></Campo>
+                  <BotonGuardar cargando={cargando}>Guardar cambios</BotonGuardar>
+                </div>
+              )}
+            </form>
+          )}
+        </div>
       );
     }
 
@@ -588,16 +649,27 @@
       const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("admin_apiUrl") || DEFAULT_API);
       const [token, setToken] = useState(() => localStorage.getItem("admin_token") || "");
       const [estadoConexion, setEstadoConexion] = useState("demo");
+      const [rol, setRol] = useState(() => localStorage.getItem("admin_rol") || "");
       const [cargando, setCargando] = useState(false);
       const [toast, setToast] = useState(null);
 
       const [equipos, setEquipos] = useState(EQUIPOS_DEMO);
       const [jugadoras, setJugadoras] = useState(JUGADORAS_DEMO);
       const [partidos, setPartidos] = useState(PARTIDOS_DEMO);
-      const [config, setConfig] = useState({ puntosVictoria: 2, puntosEmpate: 1 });
+      const [config, setConfig] = useState({ puntosVictoria: 3, puntosEmpate: 2, puntosDerrota: 1 });
+
+      // Tabs visibles según rol
+      const TABS_POR_ROL = {
+        total: ["resultados", "fixture", "goleo", "control", "jugadoras", "noticias", "config"],
+        carga: ["resultados", "fixture", "goleo"],
+        control: ["control"],
+      };
+      const tabsVisibles = TABS.filter(t => !rol || (TABS_POR_ROL[rol] || []).includes(t.key));
+      const rolLabel = { total: "Acceso total", control: "Solo control", carga: "Solo carga" };
 
       useEffect(() => { localStorage.setItem("admin_apiUrl", apiUrl); }, [apiUrl]);
       useEffect(() => { localStorage.setItem("admin_token", token); }, [token]);
+      useEffect(() => { if (rol) localStorage.setItem("admin_rol", rol); }, [rol]);
       useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); }, [toast]);
 
       async function cargarDatosReales() {
@@ -622,7 +694,29 @@
 
       async function probarConexion() {
         if (!apiUrl) { setEstadoConexion("demo"); return; }
-        await cargarDatosReales();
+        // Verificar rol con el token
+        if (token) {
+          try {
+            const params = new URLSearchParams({ accion: "verificarRol", token });
+            const res = await jsonp(`${apiUrl}?${params.toString()}`);
+            if (res.ok && res.rol) {
+              setRol(res.rol);
+              localStorage.setItem("admin_rol", res.rol);
+              await cargarDatosReales();
+              // Seleccionar la primera tab disponible para este rol
+              const disponibles = TABS_POR_ROL[res.rol] || [];
+              if (disponibles.length > 0 && !disponibles.includes(tab)) setTab(disponibles[0]);
+            } else {
+              setEstadoConexion("error");
+              setRol("");
+              localStorage.removeItem("admin_rol");
+            }
+          } catch {
+            setEstadoConexion("error");
+          }
+        } else {
+          await cargarDatosReales();
+        }
       }
 
       async function guardar(accion, payload, alExito) {
@@ -657,7 +751,7 @@
                   <span>🛡️</span>
                   <span className="text-[10px] tracking-[0.2em] uppercase" style={{ color: C.gold, fontFamily: F_BODY }}>Panel admin</span>
                 </div>
-                <h1 className="text-xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.paper }}>LIGA FEMENINA<br />DE HANDBALL</h1>
+                <h1 className="text-xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.paper }}>LIGA FEMENINA<br />DE MAXI HANDBALL</h1>
               </div>
               <button onClick={() => setConfigAbierta(true)} className="mt-1" style={{ color: C.paper, fontSize: 20 }}>⚙️</button>
             </div>
@@ -668,9 +762,15 @@
               </div>
             )}
 
-            <div className="flex px-4 pt-4 pb-3 gap-1">
-              {TABS.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg" style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? C.gold : C.muted }}>
+            {estadoConexion === "ok" && rol && (
+              <div className="px-4 py-1.5 text-center text-[10px]" style={{ background: C.teal, color: "#FFF", fontFamily: F_BODY }}>
+                🔑 {rolLabel[rol] || rol}
+              </div>
+            )}
+
+            <div className="flex px-4 pt-4 pb-3 gap-1 flex-wrap">
+              {tabsVisibles.map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg" style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? C.gold : C.muted, minWidth: tabsVisibles.length > 5 ? "18%" : "auto" }}>
                   <span>{t.icon}</span>
                   <span className="text-[10px]" style={{ fontFamily: F_BODY, fontWeight: 500 }}>{t.label}</span>
                 </button>
@@ -679,7 +779,7 @@
 
             <div className="flex-1">
               {tab === "resultados" && <VistaResultados partidos={partidos} equipos={equipos} jugadoras={jugadoras} cargando={cargando} onGuardar={(p, cb) => guardar("cargarResultado", p, cb)} />}
-              {tab === "fixture" && <VistaFixture equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarPartido", p, cb)} />}
+              {tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarPartido", p, cb)} onEditar={(p) => guardar("editarPartido", p)} />}
               {tab === "goleo" && <VistaGoleo partidos={partidos} jugadoras={jugadoras} equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarGol", p, cb)} />}
               {tab === "control" && <VistaControl partidos={partidos} jugadoras={jugadoras} equipos={equipos} apiUrl={apiUrl} token={token} onToast={setToast} />}
               {tab === "jugadoras" && <VistaJugadoras jugadoras={jugadoras} equipos={equipos} />}
@@ -688,7 +788,7 @@
             </div>
           </div>
 
-          <ModalConfig abierto={configAbierta} onCerrar={() => setConfigAbierta(false)} apiUrl={apiUrl} setApiUrl={setApiUrl} token={token} setToken={setToken} estadoConexion={estadoConexion} onProbar={probarConexion} />
+          <ModalConfig abierto={configAbierta} onCerrar={() => setConfigAbierta(false)} apiUrl={apiUrl} setApiUrl={setApiUrl} token={token} setToken={setToken} estadoConexion={estadoConexion} rol={rol} onProbar={probarConexion} />
           <Toast toast={toast} />
         </div>
       );
