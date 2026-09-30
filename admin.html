@@ -176,6 +176,9 @@
           {disponibles.length === 0 && partido && <p className="text-[10px] mb-2" style={{ color: C.coral, fontFamily: F_BODY, wordBreak: "break-all" }}>
             DEBUG — Local: [{partido.ID_EquipoLocal}] Visitante: [{partido.ID_EquipoVisitante}] — Total jugadoras cargadas: {jugadoras.length} — Primeras 3 IDs equipo: {jugadoras.slice(0,3).map(j=>j.ID_Equipo).join(", ")}
           </p>}
+          <p className="text-[10px] mb-2" style={{ color: "#999", fontFamily: F_BODY, wordBreak: "break-all" }}>
+            DIAG: partido={partido?"SÍ":"NO"} | idEfectivo=[{idEfectivo}] | jugadoras={jugadoras.length} | disponibles={disponibles.length}
+          </p>
           <BotonGuardar cargando={cargando}>Cargar resultado</BotonGuardar>
         </form>
       );
