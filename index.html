@@ -201,11 +201,11 @@ function VistaTabla({equipos,jugadoras,partidos,config,isDark}){
         {pO.length>0&&<TablaGrupo tema="Oro" posiciones={pO} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
         {pP.length>0&&<TablaGrupo tema="Plata" posiciones={pP} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
       </div>}
-      <div>
+      {!(ea>=2&&config.MostrarTablaFase1==="NO")&&<div>
         <div className="text-center mb-3"><span className="block text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-xl" style={{background:ea>=2?t.textMut:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT_DARK} 100%)`,color:"#FFF",fontFamily:F_B,boxShadow:ea>=2?"none":`0 4px 15px ${ACCENT}33`}}>{ea>=2?"FASE 1 — FINALIZADA":"FASE 1 — CLASIFICACIÓN"}</span></div>
         {pV.length>0&&<TablaGrupo tema="Verde" posiciones={pV} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
         {pR.length>0&&<TablaGrupo tema="Roja" posiciones={pR} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
-      </div>
+      </div>}
       <p className="text-xs mt-3 px-1" style={{color:t.textMut,fontFamily:F_B}}>
         {mp&&"Tocá un equipo para ver su plantel. "}<strong>Forma</strong>: últimos 5 —
         <span style={{color:"#2E8B57",fontWeight:600}}> G</span> ({config.PuntosVictoria||3}pts),
@@ -309,26 +309,53 @@ function VistaFixture({equipos,jugadoras,partidos,goles,config,isDark}){
     </div>)}
 
 // ============ VISTA GOLEADORAS ============
-function VistaGoleadoras({goleadoras,jugadoras,partidos,equipos,config,isDark}){
+function VistaGoleadoras({goles,jugadoras,partidos,equipos,config,isDark}){
   const t=useTheme();const ea=Number(config.EtapaActual)||1;
-  const[gv,setGv]=useState("Verde");const gd=ea>=2?["Verde","Roja","Oro","Plata"]:["Verde","Roja"];
-  const gf=goleadoras.filter(g=>{const eq=(equipos||[]).find(e=>e.Nombre===g.Equipo);if(!eq)return false;return(gv==="Verde"||gv==="Roja")?eq.Zona===gv:eq.Liga===gv});
-  const cg=gf.filter(g=>g.Goles_Totales>0);
-  const rk=[...cg].sort((a,b)=>b.Goles_Totales-a.Goles_Totales||(a.Nombre||"").localeCompare(b.Nombre||""));
+  const ocultaF1=config.MostrarGoleadorasFase1==="NO";
+  const[faseSel,setFaseSel]=useState(null);
+  const[gv,setGv]=useState(null);
+  // Fase a mostrar: la elegida, o la actual. Si la Fase 1 está oculta, siempre la actual.
+  let fase=faseSel??ea;if(fase>ea)fase=ea;if(fase===1&&ea>=2&&ocultaF1)fase=ea;
+  const mostrarBtnFase=ea>=2&&!ocultaF1;
+  const gd=fase===1?["Verde","Roja"]:["Oro","Plata"];
+  const gz=gd.includes(gv)?gv:gd[0];
+
+  // Partidos jugados de ESTA fase (por ID) -> solo sus goles cuentan
+  const faseDe={};(partidos||[]).forEach(p=>{if(p.Jugado==="SI")faseDe[String(p.ID_Partido).toLowerCase()]=Number(p.Etapa)||1});
+  const tot={};
+  (goles||[]).forEach(g=>{
+    if(faseDe[String(g.ID_Partido).toLowerCase()]!==fase)return;
+    const n=Number(g.Cantidad_Goles)||0;if(n<=0)return;
+    const jid=String(g.ID_Jugadora).toLowerCase();tot[jid]=(tot[jid]||0)+n});
+  const lista=Object.entries(tot).map(([jid,n])=>{
+    const j=(jugadoras||[]).find(x=>String(x.ID_Jugadora).toLowerCase()===jid);if(!j)return null;
+    const eq=(equipos||[]).find(e=>String(e.ID_Equipo).toLowerCase()===String(j.ID_Equipo).toLowerCase());if(!eq)return null;
+    return{ID_Jugadora:j.ID_Jugadora,Nombre:j.Nombre,Equipo:eq.Nombre,zona:fase===1?eq.Zona:eq.Liga,Goles_Totales:n}}).filter(Boolean);
+  const rk=lista.filter(x=>x.zona===gz).sort((a,b)=>b.Goles_Totales-a.Goles_Totales||(a.Nombre||"").localeCompare(b.Nombre||""));
   const mx=rk[0]?.Goles_Totales||1;
-  const mc={};(partidos||[]).forEach(p=>{if(p.Jugado==="SI"&&p.MVP_Partido){const id=String(p.MVP_Partido).toUpperCase();mc[id]=(mc[id]||0)+1}});
+  // MVP: también se cuentan solo los de esta fase
+  const mc={};(partidos||[]).forEach(p=>{if(p.Jugado==="SI"&&p.MVP_Partido&&(Number(p.Etapa)||1)===fase){const id=String(p.MVP_Partido).toUpperCase();mc[id]=(mc[id]||0)+1}});
   const bF=id=>{const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===(id||"").toLowerCase());return j?fotoDrive(j.Foto_URL):null};
   const medals=["#FFD700","#C0C0C0","#CD7F32"];
-  const ZoneBtns=()=>(
-    <div className="flex gap-2 mb-4 flex-wrap">
-      {gd.map(g=>{const z=TEMA[g];const a=gv===g;return(
-        <button key={g} className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-bold btn-press zone-btn" onClick={()=>setGv(g)}
-          style={{background:a?`linear-gradient(135deg,${z.bg} 0%,${z.bg}88 40%,${z.bg} 100%)`:`linear-gradient(135deg,${t.card} 0%,${isDark?z.bg+"22":z.ac+"11"} 100%)`,color:a?"#FFF":(isDark?z.acDark:z.ac),border:a?`2px solid ${z.bg}`:`2px solid ${isDark?z.acDark+"55":z.ac+"44"}`,fontFamily:F_B,minWidth:"45%",boxShadow:a?`0 4px 18px ${z.bg}55`:"0 1px 4px "+t.shadow}}>{z.icon} {z.label}</button>
-      )})}
+
+  const Controles=()=>(
+    <div>
+      {mostrarBtnFase&&<div className="flex gap-2 mb-3">
+        {[1,2].map(f=>{const a=fase===f;return(
+          <button key={f} className="flex-1 py-1.5 rounded-lg text-xs font-bold btn-press" onClick={()=>{setFaseSel(f);setGv(null)}}
+            style={{background:a?ACCENT:t.card,color:a?"#FFF":t.textMut,border:`1px solid ${a?ACCENT:t.border}`,fontFamily:F_B}}>{f===1?"FASE 1 — ARCHIVO":"FASE 2 — ACTUAL"}</button>)})}
+      </div>}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {gd.map(g=>{const z=TEMA[g];const a=gz===g;return(
+          <button key={g} className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-bold btn-press zone-btn" onClick={()=>setGv(g)}
+            style={{background:a?`linear-gradient(135deg,${z.bg} 0%,${z.bg}88 40%,${z.bg} 100%)`:`linear-gradient(135deg,${t.card} 0%,${isDark?z.bg+"22":z.ac+"11"} 100%)`,color:a?"#FFF":(isDark?z.acDark:z.ac),border:a?`2px solid ${z.bg}`:`2px solid ${isDark?z.acDark+"55":z.ac+"44"}`,fontFamily:F_B,minWidth:"45%",boxShadow:a?`0 4px 18px ${z.bg}55`:"0 1px 4px "+t.shadow}}>{z.icon} {z.label}</button>
+        )})}
+      </div>
     </div>);
-  if(rk.length===0)return(<div className="px-4 pb-6 fade-in"><ZoneBtns/><p className="text-sm text-center py-4" style={{fontFamily:F_B,color:t.textMut}}>Sin goles en esta zona.</p></div>);
+
+  if(rk.length===0)return(<div className="px-4 pb-6 fade-in"><Controles/><p className="text-sm text-center py-4" style={{fontFamily:F_B,color:t.textMut}}>Todavía no hay goles registrados en esta zona{ea>=2&&fase===2?" en la Fase 2":""}.</p></div>);
   return(
-    <div className="px-4 pb-6 fade-in"><ZoneBtns/><div className="space-y-2">
+    <div className="px-4 pb-6 fade-in"><Controles/><div className="space-y-2">
       {rk.map((g,i)=>{const mvps=mc[String(g.ID_Jugadora).toUpperCase()]||0;const top3=i<3;const foto=top3?bF(g.ID_Jugadora):null;
         return(
           <div key={g.ID_Jugadora||g.Nombre} className="rounded-xl px-4 py-3 flex items-center gap-3 card-hover" style={{background:t.card,border:top3?`2px solid ${medals[i]}55`:`0.5px solid ${t.border}`,boxShadow:top3?`0 3px 12px ${medals[i]}22`:`0 1px 6px ${t.shadow}`}}>
@@ -420,7 +447,7 @@ function App(){
           {cargando&&<Skeleton/>}
           {!cargando&&tab==="tabla"&&<VistaTabla equipos={equipos} jugadoras={jugadoras} partidos={partidos} config={config} isDark={dark}/>}
           {!cargando&&tab==="fixture"&&<VistaFixture equipos={equipos} jugadoras={jugadoras} partidos={partidos} goles={goles} config={config} isDark={dark}/>}
-          {!cargando&&tab==="goleadoras"&&<VistaGoleadoras goleadoras={goleadoras} jugadoras={jugadoras} partidos={partidos} equipos={equipos} config={config} isDark={dark}/>}
+          {!cargando&&tab==="goleadoras"&&<VistaGoleadoras goles={goles} jugadoras={jugadoras} partidos={partidos} equipos={equipos} config={config} isDark={dark}/>}
           {!cargando&&tab==="noticias"&&<VistaNoticias noticias={noticias} onAbrir={setNa}/>}
         </div>
 
