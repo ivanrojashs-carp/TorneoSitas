@@ -101,7 +101,7 @@
       );
     }
 
-    function ModalConfig({ abierto, onCerrar, apiUrl, setApiUrl, token, setToken, estadoConexion, rol, onProbar }) {
+    function ModalConfig({ abierto, onCerrar, apiUrl, setApiUrl, token, setToken, estadoConexion, rol, onProbar, conectando }) {
       if (!abierto) return null;
       const rolLabel = { total: "Acceso total", control: "Solo control", carga: "Solo carga" };
       return (
@@ -118,13 +118,14 @@
               <input style={estiloInput} type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Ingresá tu clave de acceso" />
             </Campo>
             <div className="flex items-center gap-2 mb-3 text-xs" style={{ fontFamily: F_BODY }}>
-              {estadoConexion === "ok" && rol && <span style={{ color: C.teal }}>✅ Conectado — {rolLabel[rol] || rol}</span>}
-              {estadoConexion === "ok" && !rol && <span style={{ color: C.teal }}>✅ Conectado</span>}
-              {estadoConexion === "error" && <span style={{ color: C.coral }}>❌ Token inválido o sin conexión</span>}
-              {estadoConexion === "demo" && <span style={{ color: C.muted }}>Ingresá tu clave para conectar</span>}
+              {conectando && <span style={{ color: C.gold }}>⏳ Conectando... puede demorar unos segundos</span>}
+              {!conectando && estadoConexion === "ok" && rol && <span style={{ color: C.teal }}>✅ Conectado — {rolLabel[rol] || rol}</span>}
+              {!conectando && estadoConexion === "ok" && !rol && <span style={{ color: C.teal }}>✅ Conectado</span>}
+              {!conectando && estadoConexion === "error" && <span style={{ color: C.coral }}>❌ Token inválido o sin conexión</span>}
+              {!conectando && estadoConexion === "demo" && <span style={{ color: C.muted }}>Ingresá tu clave para conectar</span>}
             </div>
-            <button onClick={onProbar} className="w-full rounded-lg py-2.5" style={{ background: C.paper, color: C.ink, fontFamily: F_BODY, fontWeight: 600, border: `1px solid ${C.line}` }}>
-              Conectar
+            <button onClick={onProbar} disabled={conectando} className="w-full rounded-lg py-2.5" style={{ background: conectando ? C.muted : C.paper, color: conectando ? "#FFF" : C.ink, fontFamily: F_BODY, fontWeight: 600, border: `1px solid ${C.line}`, opacity: conectando ? 0.7 : 1 }}>
+              {conectando ? "⏳ Validando..." : "Conectar"}
             </button>
           </div>
         </div>
@@ -682,6 +683,7 @@
       const [estadoConexion, setEstadoConexion] = useState("demo");
       const [rol, setRol] = useState(() => localStorage.getItem("admin_rol") || "");
       const [cargando, setCargando] = useState(false);
+      const [conectando, setConectando] = useState(false);
       const [toast, setToast] = useState(null);
 
       const [equipos, setEquipos] = useState(EQUIPOS_DEMO);
@@ -725,7 +727,7 @@
 
       async function probarConexion() {
         if (!apiUrl) { setEstadoConexion("demo"); return; }
-        // Verificar rol con el token
+        setConectando(true);
         if (token) {
           try {
             const params = new URLSearchParams({ accion: "verificarRol", token });
@@ -734,7 +736,6 @@
               setRol(res.rol);
               localStorage.setItem("admin_rol", res.rol);
               await cargarDatosReales();
-              // Seleccionar la primera tab disponible para este rol
               const disponibles = TABS_POR_ROL[res.rol] || [];
               if (disponibles.length > 0 && !disponibles.includes(tab)) setTab(disponibles[0]);
             } else {
@@ -748,6 +749,7 @@
         } else {
           await cargarDatosReales();
         }
+        setConectando(false);
       }
 
       async function guardar(accion, payload, alExito) {
@@ -819,7 +821,7 @@
             </div>
           </div>
 
-          <ModalConfig abierto={configAbierta} onCerrar={() => setConfigAbierta(false)} apiUrl={apiUrl} setApiUrl={setApiUrl} token={token} setToken={setToken} estadoConexion={estadoConexion} rol={rol} onProbar={probarConexion} />
+          <ModalConfig abierto={configAbierta} onCerrar={() => setConfigAbierta(false)} apiUrl={apiUrl} setApiUrl={setApiUrl} token={token} setToken={setToken} estadoConexion={estadoConexion} rol={rol} onProbar={probarConexion} conectando={conectando} />
           <Toast toast={toast} />
         </div>
       );
