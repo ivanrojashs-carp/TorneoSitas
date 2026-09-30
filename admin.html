@@ -138,29 +138,24 @@
       const [golesVisitante, setGolesVisitante] = useState("");
       const [mvp, setMvp] = useState("");
 
-      // Inicializar selección cuando hay datos
-      useEffect(() => {
-        if (pendientes.length > 0 && !seleccion) {
-          setSeleccion(String(pendientes[0].ID_Partido));
-        }
-      }, [pendientes.length]);
+      // IDs como strings para comparar sin problemas de tipo
+      const pendientesIds = pendientes.map(p => String(p.ID_Partido));
+      const sel = pendientesIds.includes(seleccion) ? seleccion : (pendientesIds[0] || "");
 
-      const partido = pendientes.find((p) => String(p.ID_Partido) === seleccion);
+      const partido = pendientes.find((p) => String(p.ID_Partido) === sel);
       const nombre = (id) => equipos.find((e) => String(e.ID_Equipo).toLowerCase() === String(id).toLowerCase())?.Nombre || id;
 
       const disponibles = partido ? jugadoras.filter((j) => {
         const eqJ = String(j.ID_Equipo || "").toLowerCase();
-        const eqL = String(partido.ID_EquipoLocal || "").toLowerCase();
-        const eqV = String(partido.ID_EquipoVisitante || "").toLowerCase();
-        return eqJ === eqL || eqJ === eqV;
+        return eqJ === String(partido.ID_EquipoLocal || "").toLowerCase() || eqJ === String(partido.ID_EquipoVisitante || "").toLowerCase();
       }).filter((j) => String(j.Dorsal).toUpperCase() !== "DT") : [];
 
       if (pendientes.length === 0) return <p className="px-4 py-6 text-sm" style={{ fontFamily: F_BODY, color: C.muted }}>No quedan partidos pendientes.</p>;
 
       return (
-        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido: seleccion, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
+        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido: sel, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
           <Campo label="Partido pendiente">
-            <select style={estiloInput} value={seleccion} onChange={(e) => { setSeleccion(e.target.value); setMvp(""); }}>
+            <select style={estiloInput} value={sel} onChange={(e) => { setSeleccion(e.target.value); setMvp(""); }}>
               {pendientes.map((p) => <option key={String(p.ID_Partido)} value={String(p.ID_Partido)}>Fecha {p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
             </select>
           </Campo>
@@ -168,7 +163,7 @@
             <Campo label={`Goles ${partido ? nombre(partido.ID_EquipoLocal) : "local"}`}><input style={estiloInput} type="number" min="0" value={golesLocal} onChange={(e) => setGolesLocal(e.target.value)} required /></Campo>
             <Campo label={`Goles ${partido ? nombre(partido.ID_EquipoVisitante) : "visitante"}`}><input style={estiloInput} type="number" min="0" value={golesVisitante} onChange={(e) => setGolesVisitante(e.target.value)} required /></Campo>
           </div>
-          <Campo label={`MVP del partido (${disponibles.length} jugadoras disponibles)`}>
+          <Campo label={`MVP del partido (${disponibles.length} jugadoras)`}>
             <select style={estiloInput} value={mvp} onChange={(e) => setMvp(e.target.value)}>
               <option value="">Sin elegir</option>
               {disponibles.map((j) => <option key={j.ID_Jugadora} value={j.ID_Jugadora}>{j.Nombre}</option>)}
