@@ -134,17 +134,22 @@
 
     function VistaResultados({ partidos, equipos, jugadoras, onGuardar, cargando }) {
       const pendientes = partidos.filter((p) => p.Jugado !== "SI");
-      const [seleccion, setSeleccion] = useState("");
+      // Selección por POSICIÓN en la lista (no por ID), así funciona aunque haya IDs vacíos o repetidos
+      const [indice, setIndice] = useState(0);
       const [golesLocal, setGolesLocal] = useState("");
       const [golesVisitante, setGolesVisitante] = useState("");
       const [mvp, setMvp] = useState("");
 
-      // IDs como strings para comparar sin problemas de tipo
-      const pendientesIds = pendientes.map(p => String(p.ID_Partido));
-      const sel = pendientesIds.includes(seleccion) ? seleccion : (pendientesIds[0] || "");
-
-      const partido = pendientes.find((p) => String(p.ID_Partido) === sel);
+      const idx = indice < pendientes.length ? indice : 0;
+      const partido = pendientes[idx];
       const nombre = (id) => equipos.find((e) => String(e.ID_Equipo).toLowerCase() === String(id).toLowerCase())?.Nombre || id;
+
+      // Diagnóstico de IDs: vacíos o repetidos entre los pendientes
+      const ids = pendientes.map((p) => String(p.ID_Partido ?? "").trim());
+      const hayVacios = ids.some((i) => i === "");
+      const hayRepetidos = new Set(ids.filter((i) => i !== "")).size !== ids.filter((i) => i !== "").length;
+      const idsDe = partidos.map((p) => String(p.ID_Partido ?? "").trim()).filter((i) => i !== "");
+      const repetidosGlobal = new Set(idsDe).size !== idsDe.length;
 
       const disponibles = partido ? jugadoras.filter((j) => {
         const eqJ = String(j.ID_Equipo || "").toLowerCase();
@@ -153,11 +158,18 @@
 
       if (pendientes.length === 0) return <p className="px-4 py-6 text-sm" style={{ fontFamily: F_BODY, color: C.muted }}>No quedan partidos pendientes.</p>;
 
+      const idInvalido = !partido || String(partido.ID_Partido ?? "").trim() === "";
+
       return (
-        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido: sel, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
+        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); if (idInvalido) return; onGuardar({ idPartido: String(partido.ID_Partido), golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
+          {(hayVacios || hayRepetidos || repetidosGlobal) && (
+            <div className="rounded-lg px-3 py-2 mb-3 text-xs" style={{ background: "#fee2e2", color: "#991b1b", fontFamily: F_BODY }}>
+              ⚠ Hay partidos con <strong>ID_Partido {hayVacios ? "vacío" : "repetido"}</strong> en la hoja Partidos. Sin un ID único no se puede guardar el resultado. Completá la columna A con IDs únicos (ej: P21, P22, P23...).
+            </div>
+          )}
           <Campo label="Partido pendiente">
-            <select style={estiloInput} value={sel} onChange={(e) => { setSeleccion(e.target.value); setMvp(""); }}>
-              {pendientes.map((p) => <option key={String(p.ID_Partido)} value={String(p.ID_Partido)}>Fecha {p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
+            <select style={estiloInput} value={idx} onChange={(e) => { setIndice(Number(e.target.value)); setMvp(""); }}>
+              {pendientes.map((p, i) => <option key={i} value={i}>{p.ID_Partido ? p.ID_Partido + " · " : ""}Fecha {p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
             </select>
           </Campo>
           <div className="flex gap-3">
@@ -170,7 +182,7 @@
               {disponibles.map((j) => <option key={j.ID_Jugadora} value={j.ID_Jugadora}>{j.Nombre}</option>)}
             </select>
           </Campo>
-          <BotonGuardar cargando={cargando}>Cargar resultado</BotonGuardar>
+          <BotonGuardar cargando={cargando || idInvalido}>Cargar resultado</BotonGuardar>
         </form>
       );
     }
