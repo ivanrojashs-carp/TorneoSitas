@@ -263,7 +263,7 @@
           )}
 
           {modo === "editar" && (
-            <form onSubmit={(e) => { e.preventDefault(); onEditar({ idPartido: idEditar, fecha: editFecha, hora: editHora, cancha: editCancha }); }}>
+            <form onSubmit={(e) => { e.preventDefault(); onEditar({ idPartido: idEditar, fecha: editFecha, hora: editHoraADefinir ? "Horario a confirmar" : editHora, cancha: editCancha }); }}>
               {pendientes.length === 0 ? (
                 <p className="text-sm py-4" style={{ fontFamily: F_BODY, color: C.muted }}>No hay partidos pendientes para editar.</p>
               ) : (
@@ -275,8 +275,18 @@
                   </Campo>
                   <div className="flex gap-3">
                     <Campo label="Fecha"><input style={estiloInput} type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} /></Campo>
-                    <Campo label="Hora"><input style={estiloInput} type="time" value={editHora} onChange={(e) => setEditHora(e.target.value)} /></Campo>
+                    <Campo label="Hora">
+                      {editHoraADefinir ? (
+                        <input style={{...estiloInput, background: "#f0f0f0"}} value="A confirmar" disabled />
+                      ) : (
+                        <input style={estiloInput} type="time" value={editHora} onChange={(e) => setEditHora(e.target.value)} />
+                      )}
+                    </Campo>
                   </div>
+                  <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                    <input type="checkbox" checked={editHoraADefinir} onChange={(e) => setEditHoraADefinir(e.target.checked)} />
+                    <span className="text-xs" style={{ fontFamily: F_BODY, color: C.muted }}>Hora a confirmar</span>
+                  </label>
                   <Campo label="Cancha"><input style={estiloInput} value={editCancha} onChange={(e) => setEditCancha(e.target.value)} /></Campo>
                   <BotonGuardar cargando={cargando}>Guardar cambios</BotonGuardar>
                 </div>
