@@ -24,7 +24,7 @@
   <div id="root"></div>
 
   <script type="text/babel" data-presets="react">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useMemo } = React;
 
     // Mismo helper JSONP que en index.html — ver comentario allá.
     function jsonp(url) {
@@ -133,28 +133,33 @@
 
     function VistaResultados({ partidos, equipos, jugadoras, onGuardar, cargando }) {
       const pendientes = partidos.filter((p) => p.Jugado !== "SI");
-      const [idPartido, setIdPartido] = useState("");
+      const [seleccion, setSeleccion] = useState("");
       const [golesLocal, setGolesLocal] = useState("");
       const [golesVisitante, setGolesVisitante] = useState("");
       const [mvp, setMvp] = useState("");
 
-      // Sincronizar idPartido cuando cambian los datos
-      useEffect(() => {
-        if (pendientes.length > 0 && (!idPartido || !pendientes.find(p => p.ID_Partido === idPartido))) {
-          setIdPartido(pendientes[0].ID_Partido);
-        }
-      }, [partidos]);
-
-      const partido = partidos.find((p) => p.ID_Partido === idPartido);
+      // ID efectivo: lo que el usuario eligió, o el primero de la lista
+      const idEfectivo = (seleccion && pendientes.some(p => p.ID_Partido === seleccion)) ? seleccion : (pendientes[0]?.ID_Partido || "");
+      const partido = partidos.find((p) => p.ID_Partido === idEfectivo);
       const nombre = (id) => equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (id || "").toLowerCase())?.Nombre || id;
-      const disponibles = partido ? jugadoras.filter((j) => (j.ID_Equipo || "").toLowerCase() === (partido.ID_EquipoLocal || "").toLowerCase() || (j.ID_Equipo || "").toLowerCase() === (partido.ID_EquipoVisitante || "").toLowerCase()) : [];
+
+      // Calcular disponibles directo, sin memo
+      let disponibles = [];
+      if (partido && jugadoras.length > 0) {
+        const localId = (partido.ID_EquipoLocal || "").toLowerCase();
+        const visitanteId = (partido.ID_EquipoVisitante || "").toLowerCase();
+        disponibles = jugadoras.filter((j) => {
+          const eqId = (j.ID_Equipo || "").toLowerCase();
+          return eqId === localId || eqId === visitanteId;
+        });
+      }
 
       if (pendientes.length === 0) return <p className="px-4 py-6 text-sm" style={{ fontFamily: F_BODY, color: C.muted }}>No quedan partidos pendientes.</p>;
 
       return (
-        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
+        <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); onGuardar({ idPartido: idEfectivo, golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
           <Campo label="Partido pendiente">
-            <select style={estiloInput} value={idPartido} onChange={(e) => setIdPartido(e.target.value)}>
+            <select style={estiloInput} value={idEfectivo} onChange={(e) => setSeleccion(e.target.value)}>
               {pendientes.map((p) => <option key={p.ID_Partido} value={p.ID_Partido}>Fecha {p.Jornada} · {nombre(p.ID_EquipoLocal)} vs {nombre(p.ID_EquipoVisitante)}</option>)}
             </select>
           </Campo>
@@ -162,12 +167,13 @@
             <Campo label={`Goles ${partido ? nombre(partido.ID_EquipoLocal) : "local"}`}><input style={estiloInput} type="number" min="0" value={golesLocal} onChange={(e) => setGolesLocal(e.target.value)} required /></Campo>
             <Campo label={`Goles ${partido ? nombre(partido.ID_EquipoVisitante) : "visitante"}`}><input style={estiloInput} type="number" min="0" value={golesVisitante} onChange={(e) => setGolesVisitante(e.target.value)} required /></Campo>
           </div>
-          <Campo label="MVP del partido (opcional)">
+          <Campo label={`MVP del partido (${disponibles.length} jugadoras disponibles)`}>
             <select style={estiloInput} value={mvp} onChange={(e) => setMvp(e.target.value)}>
               <option value="">Sin elegir</option>
               {disponibles.map((j) => <option key={j.ID_Jugadora} value={j.ID_Jugadora}>{j.Nombre}</option>)}
             </select>
           </Campo>
+          {disponibles.length === 0 && partido && <p className="text-xs mb-2" style={{ color: C.coral, fontFamily: F_BODY }}>⚠ IDs de equipo no coinciden entre Partidos ({partido.ID_EquipoLocal}/{partido.ID_EquipoVisitante}) y Jugadoras. Verificá mayúsculas.</p>}
           <BotonGuardar cargando={cargando}>Cargar resultado</BotonGuardar>
         </form>
       );
@@ -179,6 +185,7 @@
       const [jornada, setJornada] = useState("");
       const [fecha, setFecha] = useState("");
       const [hora, setHora] = useState("");
+      const [horaADefinir, setHoraADefinir] = useState(false);
       const [cancha, setCancha] = useState("");
       const [idLocal, setIdLocal] = useState(equipos[0]?.ID_Equipo || "");
       const [idVisitante, setIdVisitante] = useState(equipos[1]?.ID_Equipo || "");
@@ -188,6 +195,7 @@
       const [idEditar, setIdEditar] = useState(pendientes[0]?.ID_Partido || "");
       const [editFecha, setEditFecha] = useState("");
       const [editHora, setEditHora] = useState("");
+      const [editHoraADefinir, setEditHoraADefinir] = useState(false);
       const [editCancha, setEditCancha] = useState("");
 
       useEffect(() => {
@@ -200,10 +208,15 @@
           setEditFecha(String(partidoEditar.Fecha || "").slice(0, 10));
           setEditHora(String(partidoEditar.Hora || ""));
           setEditCancha(String(partidoEditar.Cancha || ""));
+          setEditHoraADefinir(String(partidoEditar.Hora || "").toLowerCase() === "a definir");
         }
       }, [idEditar, partidos]);
 
       const nombre = (id) => equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (id || "").toLowerCase())?.Nombre || id;
+
+      // Indicador de zona/liga del equipo local
+      const eqLocal = equipos.find((e) => (e.ID_Equipo || "").toLowerCase() === (idLocal || "").toLowerCase());
+      const zonaInfo = eqLocal ? (etapa === "2" ? (eqLocal.Liga || "—") : (eqLocal.Zona || "—")) : "—";
 
       return (
         <div className="px-4 pb-6">
@@ -213,7 +226,7 @@
           </div>
 
           {modo === "crear" && (
-            <form onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora, cancha, idLocal, idVisitante, etapa }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); }); }}>
+            <form onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora: horaADefinir ? "A definir" : hora, cancha, idLocal, idVisitante, etapa }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); setHoraADefinir(false); }); }}>
               <div className="flex gap-3">
                 <Campo label="Jornada"><input style={estiloInput} type="number" min="1" value={jornada} onChange={(e) => setJornada(e.target.value)} required /></Campo>
                 <Campo label="Etapa">
@@ -224,12 +237,25 @@
               </div>
               <div className="flex gap-3">
                 <Campo label="Fecha"><input style={estiloInput} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></Campo>
-                <Campo label="Hora"><input style={estiloInput} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required /></Campo>
+                <Campo label="Hora">
+                  {horaADefinir ? (
+                    <input style={{...estiloInput, background: "#f0f0f0"}} value="A definir" disabled />
+                  ) : (
+                    <input style={estiloInput} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required />
+                  )}
+                </Campo>
               </div>
+              <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                <input type="checkbox" checked={horaADefinir} onChange={(e) => setHoraADefinir(e.target.checked)} />
+                <span className="text-xs" style={{ fontFamily: F_BODY, color: C.muted }}>Hora a definir</span>
+              </label>
               <Campo label="Cancha"><input style={estiloInput} value={cancha} onChange={(e) => setCancha(e.target.value)} placeholder="Cancha 1" required /></Campo>
               <div className="flex gap-3">
                 <Campo label="Local"><select style={estiloInput} value={idLocal} onChange={(e) => setIdLocal(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
                 <Campo label="Visitante"><select style={estiloInput} value={idVisitante} onChange={(e) => setIdVisitante(e.target.value)}>{equipos.map((eq) => <option key={eq.ID_Equipo} value={eq.ID_Equipo}>{eq.Nombre}</option>)}</select></Campo>
+              </div>
+              <div className="text-xs mb-3 px-1" style={{ fontFamily: F_BODY, color: C.teal }}>
+                📍 Este partido se mostrará en: <strong>{etapa === "1" ? "Zona " : "Zona "}{zonaInfo}</strong>
               </div>
               {idLocal === idVisitante && <p className="text-xs mb-2" style={{ color: C.coral, fontFamily: F_BODY }}>Un equipo no puede jugar contra sí mismo.</p>}
               <BotonGuardar cargando={cargando}>Agregar partido</BotonGuardar>
@@ -645,7 +671,7 @@
     function App() {
       const [tab, setTab] = useState("resultados");
       const [configAbierta, setConfigAbierta] = useState(true);
-      const DEFAULT_API = "https://script.google.com/macros/s/AKfycbykmKA9zP90dzDHCta9pkqycnabZubx1PR7G6gVFpuoUds-dWElMO592ilaDZX8zjLb/exec";
+      const DEFAULT_API = "https://script.google.com/macros/s/AKfycbxljAlRqwMJDc6Q6D4etOvFXHbDK9dfWl7FxOwQHYgivU2A8mL3qNs72rhOxHNNyiZE/exec";
       const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("admin_apiUrl") || DEFAULT_API);
       const [token, setToken] = useState(() => localStorage.getItem("admin_token") || "");
       const [estadoConexion, setEstadoConexion] = useState("demo");

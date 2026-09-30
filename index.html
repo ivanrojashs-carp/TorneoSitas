@@ -41,7 +41,7 @@
 <body>
 <div id="root"></div>
 <script>
-window.API_URL="https://script.google.com/macros/s/AKfycbykmKA9zP90dzDHCta9pkqycnabZubx1PR7G6gVFpuoUds-dWElMO592ilaDZX8zjLb/exec";
+window.API_URL="https://script.google.com/macros/s/AKfycbxljAlRqwMJDc6Q6D4etOvFXHbDK9dfWl7FxOwQHYgivU2A8mL3qNs72rhOxHNNyiZE/exec";
 </script>
 <script type="text/babel" data-presets="react">
 const{useState,useEffect,useMemo,useCallback}=React;
@@ -187,8 +187,8 @@ function VistaTabla({equipos,jugadoras,partidos,config,isDark}){
   const t=useTheme();const ea=Number(config.EtapaActual)||1;
   const[em,setEm]=useState(null);
   const mp=config.MostrarPlantel!=="NO";
-  const p1=partidos.filter(p=>String(p.Etapa)==="1");
-  const p2=partidos.filter(p=>String(p.Etapa)==="2");
+  const p1=partidos.filter(p=>Number(p.Etapa)===1);
+  const p2=partidos.filter(p=>Number(p.Etapa)===2);
   const pV=useMemo(()=>calcPos(equipos.filter(e=>e.Zona==="Verde"),p1,config),[equipos,partidos,config]);
   const pR=useMemo(()=>calcPos(equipos.filter(e=>e.Zona==="Roja"),p1,config),[equipos,partidos,config]);
   const pO=useMemo(()=>calcPos(equipos.filter(e=>e.Liga==="Oro"),p2,config),[equipos,partidos,config]);
@@ -251,10 +251,13 @@ function ModalPartido({partido,equipos,jugadoras,goles,onCerrar}){
 // ============ VISTA FIXTURE ============
 function VistaFixture({equipos,jugadoras,partidos,goles,config,isDark}){
   const t=useTheme();const ea=Number(config.EtapaActual)||1;
-  const[ev,setEv]=useState(ea);const gd=ev===1?["Verde","Roja"]:["Oro","Plata"];const[gv,setGv]=useState(gd[0]);
+  const[ev,setEv]=useState(ea);const[gv,setGv]=useState(ea>=2?"Oro":"Verde");
   const[pd,setPd]=useState(null);
+  // Sincronizar cuando cambia la config
+  useEffect(()=>{const nea=Number(config.EtapaActual)||1;setEv(nea);setGv(nea>=2?"Oro":"Verde")},[config.EtapaActual]);
+  const gd=ev===1?["Verde","Roja"]:["Oro","Plata"];
   const ce=e=>{setEv(e);setGv(e===1?"Verde":"Oro")};
-  const pf=partidos.filter(p=>{if(String(p.Etapa)!==String(ev))return false;const l=equipoPorId(equipos,p.ID_EquipoLocal);return ev===1?l.Zona===gv:l.Liga===gv});
+  const pf=partidos.filter(p=>{if(Number(p.Etapa)!==ev)return false;const l=equipoPorId(equipos,p.ID_EquipoLocal);return ev===1?l.Zona===gv:l.Liga===gv});
   const jn=[...new Set(pf.map(p=>p.Jornada))].sort((a,b)=>a-b);
   const z=TEMA[gv]||TEMA.Verde;
   const bMvp=mid=>{if(!mid)return null;const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===String(mid).toLowerCase());if(!j)return null;return{nombre:j.Nombre,equipo:equipoPorId(equipos,j.ID_Equipo).Nombre}};
