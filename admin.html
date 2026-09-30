@@ -173,7 +173,9 @@
               {disponibles.map((j) => <option key={j.ID_Jugadora} value={j.ID_Jugadora}>{j.Nombre}</option>)}
             </select>
           </Campo>
-          {disponibles.length === 0 && partido && <p className="text-xs mb-2" style={{ color: C.coral, fontFamily: F_BODY }}>⚠ IDs de equipo no coinciden entre Partidos ({partido.ID_EquipoLocal}/{partido.ID_EquipoVisitante}) y Jugadoras. Verificá mayúsculas.</p>}
+          {disponibles.length === 0 && partido && <p className="text-[10px] mb-2" style={{ color: C.coral, fontFamily: F_BODY, wordBreak: "break-all" }}>
+            DEBUG — Local: [{partido.ID_EquipoLocal}] Visitante: [{partido.ID_EquipoVisitante}] — Total jugadoras cargadas: {jugadoras.length} — Primeras 3 IDs equipo: {jugadoras.slice(0,3).map(j=>j.ID_Equipo).join(", ")}
+          </p>}
           <BotonGuardar cargando={cargando}>Cargar resultado</BotonGuardar>
         </form>
       );
