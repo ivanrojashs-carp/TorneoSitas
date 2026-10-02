@@ -88,10 +88,10 @@ function calcPos(eqs,pts,cfg){
   return eqs.map(eq=>{
     const pr=pts.filter(p=>p.Jugado==="SI"&&(p.ID_EquipoLocal===eq.ID_Equipo||p.ID_EquipoVisitante===eq.ID_Equipo));
     let pg=0,pe=0,pp=0,gf=0,gc=0;const fm=[];
-    pr.slice().sort((a,b)=>new Date(a.Fecha)-new Date(b.Fecha)).forEach(p=>{
+    pr.slice().sort((a,b)=>(Number(a.Jornada)||0)-(Number(b.Jornada)||0)||new Date(a.Fecha)-new Date(b.Fecha)).forEach(p=>{
       const l=p.ID_EquipoLocal===eq.ID_Equipo;const gp=Number(l?p.GolesLocal:p.GolesVisitante);const gr=Number(l?p.GolesVisitante:p.GolesLocal);
       gf+=gp;gc+=gr;if(gp>gr){pg++;fm.push("G")}else if(gp===gr){pe++;fm.push("E")}else{pp++;fm.push("P")}
-    });return{...eq,pj:pr.length,pg,pe,pp,gf,gc,dg:gf-gc,pts:pg*pV+pe*pE+pp*pD,racha:fm.slice(-5).reverse()}
+    });return{...eq,pj:pr.length,pg,pe,pp,gf,gc,dg:gf-gc,pts:pg*pV+pe*pE+pp*pD,racha:fm.slice(-5)}
   }).sort((a,b)=>b.pts-a.pts||b.dg-a.dg||b.gf-a.gf)}
 
 // ============ SKELETON ============
@@ -207,7 +207,7 @@ function VistaTabla({equipos,jugadoras,partidos,config,isDark}){
         {pR.length>0&&<TablaGrupo tema="Roja" posiciones={pR} onEquipoClick={mp?setEm:null} isDark={isDark}/>}
       </div>}
       <p className="text-xs mt-3 px-1" style={{color:t.textMut,fontFamily:F_B}}>
-        {mp&&"Tocá un equipo para ver su plantel. "}<strong>Forma</strong>: últimos 5 —
+        {mp&&"Tocá un equipo para ver su plantel. "}<strong>Forma</strong>: últimos 5, de izquierda a derecha por fecha —
         <span style={{color:"#2E8B57",fontWeight:600}}> G</span> ({config.PuntosVictoria||3}pts),
         <span style={{color:"#F2B705",fontWeight:600}}> E</span> ({config.PuntosEmpate||2}pts),
         <span style={{color:"#A8324A",fontWeight:600}}> P</span> ({config.PuntosDerrota||1}pt).
@@ -251,24 +251,28 @@ function ModalPartido({partido,equipos,jugadoras,goles,onCerrar}){
 // ============ VISTA FIXTURE ============
 function VistaFixture({equipos,jugadoras,partidos,goles,config,isDark}){
   const t=useTheme();const ea=Number(config.EtapaActual)||1;
+  const ocultaF1=ea>=2&&config.MostrarFixtureFase1==="NO";
   const[ev,setEv]=useState(ea);const[gv,setGv]=useState(ea>=2?"Oro":"Verde");
   const[pd,setPd]=useState(null);
   // Sincronizar cuando cambia la config
   useEffect(()=>{const nea=Number(config.EtapaActual)||1;setEv(nea);setGv(nea>=2?"Oro":"Verde")},[config.EtapaActual]);
-  const gd=ev===1?["Verde","Roja"]:["Oro","Plata"];
+  // Si la Fase 1 está oculta, nunca se muestra aunque quede seleccionada
+  const evEf=(ocultaF1&&ev===1)?ea:ev;
+  const gd=evEf===1?["Verde","Roja"]:["Oro","Plata"];
+  const gz=gd.includes(gv)?gv:gd[0];
   const ce=e=>{setEv(e);setGv(e===1?"Verde":"Oro")};
-  const pf=partidos.filter(p=>{if(Number(p.Etapa)!==ev)return false;const l=equipoPorId(equipos,p.ID_EquipoLocal);return ev===1?l.Zona===gv:l.Liga===gv});
+  const pf=partidos.filter(p=>{if(Number(p.Etapa)!==evEf)return false;const l=equipoPorId(equipos,p.ID_EquipoLocal);return evEf===1?l.Zona===gz:l.Liga===gz});
   const jn=[...new Set(pf.map(p=>p.Jornada))].sort((a,b)=>a-b);
-  const z=TEMA[gv]||TEMA.Verde;
+  const z=TEMA[gz]||TEMA.Verde;
   const bMvp=mid=>{if(!mid)return null;const j=(jugadoras||[]).find(x=>(x.ID_Jugadora||"").toLowerCase()===String(mid).toLowerCase());if(!j)return null;return{nombre:j.Nombre,equipo:equipoPorId(equipos,j.ID_Equipo).Nombre}};
   return(
     <div className="px-4 pb-6 fade-in">
-      <div className="flex gap-2 mb-3">
+      {!ocultaF1&&<div className="flex gap-2 mb-3">
         <button className="flex-1 py-1.5 rounded-lg text-xs font-bold btn-press" onClick={()=>ce(1)} style={{background:ev===1?ACCENT:t.card,color:ev===1?"#FFF":t.textMut,border:`1px solid ${ev===1?ACCENT:t.border}`,fontFamily:F_B}}>FASE 1 — ZONAS</button>
         {ea>=2&&<button className="flex-1 py-1.5 rounded-lg text-xs font-bold btn-press" onClick={()=>ce(2)} style={{background:ev===2?ACCENT:t.card,color:ev===2?"#FFF":t.textMut,border:`1px solid ${ev===2?ACCENT:t.border}`,fontFamily:F_B}}>FASE 2 — ZONAS</button>}
-      </div>
+      </div>}
       <div className="flex gap-2 mb-4">
-        {gd.map(g=>{const tz=TEMA[g];const a=gv===g;return(
+        {gd.map(g=>{const tz=TEMA[g];const a=gz===g;return(
           <button key={g} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold btn-press zone-btn" onClick={()=>setGv(g)}
             style={{background:a?`linear-gradient(135deg,${tz.bg} 0%,${tz.bg}88 40%,${tz.bg} 100%)`:`linear-gradient(135deg,${t.card} 0%,${isDark?tz.bg+"22":tz.ac+"11"} 100%)`,color:a?"#FFF":(isDark?tz.acDark:tz.ac),border:a?`2px solid ${tz.bg}`:`2px solid ${isDark?tz.acDark+"55":tz.ac+"44"}`,fontFamily:F_B,boxShadow:a?`0 4px 18px ${tz.bg}55`:"0 1px 4px "+t.shadow}}>{tz.icon} {tz.label}</button>
         )})}
