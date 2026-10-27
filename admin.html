@@ -234,7 +234,7 @@
           </div>
 
           {modo === "crear" && (
-            <form onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora: horaADefinir ? "A definir" : hora, cancha, idLocal, idVisitante, etapa }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); setHoraADefinir(false); }); }}>
+            <form onSubmit={(e) => { e.preventDefault(); if (idLocal === idVisitante) return; onGuardar({ jornada: Number(jornada), fecha, hora: horaADefinir ? "Horario a confirmar" : hora, cancha, idLocal, idVisitante, etapa }, () => { setJornada(""); setFecha(""); setHora(""); setCancha(""); setHoraADefinir(false); }); }}>
               <div className="flex gap-3">
                 <Campo label="Jornada"><input style={estiloInput} type="number" min="1" value={jornada} onChange={(e) => setJornada(e.target.value)} required /></Campo>
                 <Campo label="Etapa">
@@ -689,7 +689,7 @@
     function App() {
       const [tab, setTab] = useState("resultados");
       const [configAbierta, setConfigAbierta] = useState(true);
-      const DEFAULT_API = "https://script.google.com/macros/s/AKfycbxljAlRqwMJDc6Q6D4etOvFXHbDK9dfWl7FxOwQHYgivU2A8mL3qNs72rhOxHNNyiZE/exec";
+      const DEFAULT_API = "https://script.google.com/macros/s/AKfycbzYeCWNcNETEbNd1mV-DZPdTXaOxUqX5q3SmTwv1BJ7k81OyB2sb5i-FGmQgxfQ9Ihi/exec";
       const [apiUrl, setApiUrl] = useState(() => localStorage.getItem("admin_apiUrl") || DEFAULT_API);
       const [token, setToken] = useState(() => localStorage.getItem("admin_token") || "");
       const [estadoConexion, setEstadoConexion] = useState("demo");

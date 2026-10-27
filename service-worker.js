@@ -3,7 +3,7 @@
 // cacheada de inmediato (carga instantánea) y descarga la nueva de fondo
 // para la próxima vez. Los datos del torneo van siempre a la red.
 
-const CACHE_NAME = "liga-handball-v4";
+const CACHE_NAME = "liga-handball-v5";
 
 self.addEventListener("install", () => self.skipWaiting());
 
