@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex, nofollow" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -15,7 +15,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
   <style>
-    body { margin: 0; background: #E5E1D6; }
+    body { margin: 0; background: #F6F7FB; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    input, select, textarea { outline: none; transition: border-color .2s, box-shadow .2s; }
+    input:focus, select:focus, textarea:focus { border-color: #A91B60 !important; box-shadow: 0 0 0 3px rgba(169,27,96,.14); }
+    @keyframes floaty { 50% { transform: translate(22px,16px) scale(1.12); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    .blob { position: absolute; border-radius: 50%; filter: blur(55px); opacity: .55; animation: floaty 12s ease-in-out infinite; }
+    .fade-up { animation: fadeUp .45s cubic-bezier(.22,1,.36,1) both; }
+    .press { transition: transform .15s, box-shadow .2s; }
+    .press:active { transform: scale(.97); }
+    .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    ::-webkit-scrollbar { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .girando { animation: spin 1s linear infinite; display: inline-block; }
   </style>
@@ -71,20 +82,21 @@
       { key: "config", label: "Config", icon: "🔧" },
     ];
 
-    const C = { ink: "#12203B", paper: "#F6F3EC", coral: "#E84C3D", gold: "#F2B705", teal: "#1B6B6B", line: "#E5E1D6", muted: "#6B7280" };
-    const F_DISPLAY = "Oswald, sans-serif";
+    const C = { ink: "#0F172A", paper: "#F6F7FB", coral: "#DC2626", gold: "#F2B705", teal: "#16A34A", line: "#E8EAF2", muted: "#64748B", accent: "#A91B60", accent2: "#7B1145" };
+    const GRAD = `linear-gradient(135deg, ${C.accent}, ${C.accent2})`;
+    const F_DISPLAY = "Inter, sans-serif";
     const F_BODY = "Inter, sans-serif";
 
-    const estiloInput = { width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, background: "#FFF", fontFamily: F_BODY, fontSize: 14, color: C.ink };
+    const estiloInput = { width: "100%", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.line}`, background: "#FFF", fontFamily: F_BODY, fontSize: 14, color: C.ink };
 
     function Campo({ label, children }) {
-      return <label className="block mb-3"><span className="block text-xs mb-1" style={{ fontFamily: F_BODY, color: C.muted }}>{label}</span>{children}</label>;
+      return <label className="block mb-3"><span className="block mb-1.5" style={{ fontFamily: F_BODY, color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>{label}</span>{children}</label>;
     }
 
     function BotonGuardar({ cargando, children }) {
       return (
-        <button type="submit" disabled={cargando} className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 mt-1"
-          style={{ background: C.ink, color: C.gold, fontFamily: F_BODY, fontWeight: 600, opacity: cargando ? 0.7 : 1 }}>
+        <button type="submit" disabled={cargando} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 mt-2 press"
+          style={{ background: GRAD, color: "#FFF", fontFamily: F_BODY, fontWeight: 700, letterSpacing: ".03em", boxShadow: "0 10px 22px -10px rgba(169,27,96,.7)", opacity: cargando ? 0.7 : 1 }}>
           {cargando ? <span className="girando">⏳</span> : "💾"} {children}
         </button>
       );
@@ -94,8 +106,8 @@
       if (!toast) return null;
       const ok = toast.tipo === "ok";
       return (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg flex items-center gap-2 z-50"
-          style={{ background: ok ? C.teal : C.coral, color: "#FFF", fontFamily: F_BODY, fontSize: 13, maxWidth: "90%" }}>
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-2xl flex items-center gap-2 z-50 fade-up"
+          style={{ background: ok ? C.teal : C.coral, color: "#FFF", fontFamily: F_BODY, fontSize: 13, fontWeight: 600, maxWidth: "90%", boxShadow: "0 14px 30px -12px rgba(0,0,0,.45)" }}>
           {ok ? "✅" : "❌"} {toast.mensaje}
         </div>
       );
@@ -105,10 +117,10 @@
       if (!abierto) return null;
       const rolLabel = { total: "Acceso total", control: "Solo control", carga: "Solo carga" };
       return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(18,32,59,0.55)" }} onClick={onCerrar}>
-          <div className="w-full max-w-sm rounded-t-2xl p-5" style={{ background: "#FFF" }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center glass" style={{ background: "rgba(15,23,42,0.55)" }} onClick={onCerrar}>
+          <div className="w-full max-w-md rounded-t-3xl p-5 fade-up" style={{ background: "#FFF" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.ink, fontSize: 18 }}>CONEXIÓN</h3>
+              <h3 style={{ fontFamily: F_DISPLAY, fontWeight: 800, color: C.ink, fontSize: 15, letterSpacing: ".08em" }}>CONEXIÓN</h3>
               <button onClick={onCerrar} style={{ color: C.muted }}>✕</button>
             </div>
             <Campo label="URL de Apps Script (termina en /exec)">
@@ -118,13 +130,13 @@
               <input style={estiloInput} type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Ingresá tu clave de acceso" />
             </Campo>
             <div className="flex items-center gap-2 mb-3 text-xs" style={{ fontFamily: F_BODY }}>
-              {conectando && <span style={{ color: C.gold }}>⏳ Conectando... puede demorar unos segundos</span>}
+              {conectando && <span style={{ color: "#B45309" }}>⏳ Conectando... puede demorar unos segundos</span>}
               {!conectando && estadoConexion === "ok" && rol && <span style={{ color: C.teal }}>✅ Conectado — {rolLabel[rol] || rol}</span>}
               {!conectando && estadoConexion === "ok" && !rol && <span style={{ color: C.teal }}>✅ Conectado</span>}
               {!conectando && estadoConexion === "error" && <span style={{ color: C.coral }}>❌ Token inválido o sin conexión</span>}
               {!conectando && estadoConexion === "demo" && <span style={{ color: C.muted }}>Ingresá tu clave para conectar</span>}
             </div>
-            <button onClick={onProbar} disabled={conectando} className="w-full rounded-lg py-2.5" style={{ background: conectando ? C.muted : C.paper, color: conectando ? "#FFF" : C.ink, fontFamily: F_BODY, fontWeight: 600, border: `1px solid ${C.line}`, opacity: conectando ? 0.7 : 1 }}>
+            <button onClick={onProbar} disabled={conectando} className="w-full rounded-xl py-3 press" style={{ background: conectando ? C.muted : GRAD, color: "#FFF", fontFamily: F_BODY, fontWeight: 600, border: "none", boxShadow: conectando ? "none" : "0 10px 22px -10px rgba(169,27,96,.7)", opacity: conectando ? 0.7 : 1 }}>
               {conectando ? "⏳ Validando..." : "Conectar"}
             </button>
           </div>
@@ -163,7 +175,7 @@
       return (
         <form className="px-4 pb-6" onSubmit={(e) => { e.preventDefault(); if (idInvalido) return; onGuardar({ idPartido: String(partido.ID_Partido), golesLocal: Number(golesLocal), golesVisitante: Number(golesVisitante), mvp: mvp || undefined }, () => { setGolesLocal(""); setGolesVisitante(""); setMvp(""); }); }}>
           {(hayVacios || hayRepetidos || repetidosGlobal) && (
-            <div className="rounded-lg px-3 py-2 mb-3 text-xs" style={{ background: "#fee2e2", color: "#991b1b", fontFamily: F_BODY }}>
+            <div className="rounded-xl px-3 py-2 mb-3 text-xs" style={{ background: "#fee2e2", color: "#991b1b", fontFamily: F_BODY }}>
               ⚠ Hay partidos con <strong>ID_Partido {hayVacios ? "vacío" : "repetido"}</strong> en la hoja Partidos. Sin un ID único no se puede guardar el resultado. Completá la columna A con IDs únicos (ej: P21, P22, P23...).
             </div>
           )}
@@ -229,8 +241,8 @@
       return (
         <div className="px-4 pb-6">
           <div className="flex gap-2 mb-4">
-            <button type="button" onClick={() => setModo("crear")} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: modo === "crear" ? C.ink : "transparent", color: modo === "crear" ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>➕ CREAR</button>
-            <button type="button" onClick={() => setModo("editar")} className="flex-1 py-1.5 rounded-lg text-xs font-bold" style={{ background: modo === "editar" ? C.ink : "transparent", color: modo === "editar" ? C.gold : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>✏️ EDITAR</button>
+            <button type="button" onClick={() => setModo("crear")} className="flex-1 py-1.5 rounded-xl text-xs font-bold" style={{ background: modo === "crear" ? GRAD : "transparent", color: modo === "crear" ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>➕ CREAR</button>
+            <button type="button" onClick={() => setModo("editar")} className="flex-1 py-1.5 rounded-xl text-xs font-bold" style={{ background: modo === "editar" ? GRAD : "transparent", color: modo === "editar" ? "#FFF" : C.muted, border: `1px solid ${C.line}`, fontFamily: F_BODY }}>✏️ EDITAR</button>
           </div>
 
           {modo === "crear" && (
@@ -247,7 +259,7 @@
                 <Campo label="Fecha"><input style={estiloInput} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></Campo>
                 <Campo label="Hora">
                   {horaADefinir ? (
-                    <input style={{...estiloInput, background: "#f0f0f0"}} value="A definir" disabled />
+                    <input style={{...estiloInput, background: "#F1F3F9"}} value="A definir" disabled />
                   ) : (
                     <input style={estiloInput} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required />
                   )}
@@ -285,7 +297,7 @@
                     <Campo label="Fecha"><input style={estiloInput} type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} /></Campo>
                     <Campo label="Hora">
                       {editHoraADefinir ? (
-                        <input style={{...estiloInput, background: "#f0f0f0"}} value="A confirmar" disabled />
+                        <input style={{...estiloInput, background: "#F1F3F9"}} value="A confirmar" disabled />
                       ) : (
                         <input style={estiloInput} type="time" value={editHora} onChange={(e) => setEditHora(e.target.value)} />
                       )}
@@ -400,7 +412,7 @@
               <div key={j.ID_Jugadora} className="rounded-xl px-4 py-3" style={{ background: "#FFF", border: `1px solid ${C.line}` }}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium" style={{ fontFamily: F_BODY, color: C.ink }}>{j.Nombre}</span>
-                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#F0F0F0", color: C.muted, fontFamily: F_BODY }}>#{j.Dorsal}</span>
+                  <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#F1F3F9", color: C.muted, fontFamily: F_BODY }}>#{j.Dorsal}</span>
                 </div>
                 <div className="text-xs" style={{ fontFamily: F_BODY, color: C.muted }}>
                   {nombreEquipo(j.ID_Equipo)}
@@ -587,22 +599,22 @@
           {/* Scanner */}
           <div className="mb-3">
             {!escaneando ? (
-              <button type="button" onClick={iniciarScanner} className="w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
-                style={{ background: soportaScanner ? C.ink : C.muted, color: soportaScanner ? C.gold : "#FFF", fontFamily: F_BODY }}>
+              <button type="button" onClick={iniciarScanner} className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+                style={{ background: soportaScanner ? GRAD : C.muted, color: "#FFF", fontFamily: F_BODY }}>
                 📷 {soportaScanner ? "ESCANEAR DNI" : "ESCANEAR DNI (solo Chrome Android)"}
               </button>
             ) : (
               <div>
-                <div className="relative rounded-lg overflow-hidden mb-2" style={{ background: "#000", minHeight: 200 }}>
+                <div className="relative rounded-xl overflow-hidden mb-2" style={{ background: "#000", minHeight: 200 }}>
                   <video ref={videoRef} className="w-full" style={{ display: "block", maxHeight: 250 }} playsInline muted autoPlay />
                   {!camaraLista && <div className="absolute inset-0 flex items-center justify-center"><span className="text-sm" style={{ color: "#FFF", fontFamily: F_BODY }}>Iniciando cámara...</span></div>}
                 </div>
                 {ultimoEscaneo && (
-                  <div className="text-center text-sm font-bold mb-2 py-1.5 rounded-lg" style={{ background: ultimoEscaneo.startsWith("✅") ? "#dcfce7" : "#fee2e2", color: ultimoEscaneo.startsWith("✅") ? "#166534" : "#991b1b", fontFamily: F_BODY }}>
+                  <div className="text-center text-sm font-bold mb-2 py-1.5 rounded-xl" style={{ background: ultimoEscaneo.startsWith("✅") ? "#dcfce7" : "#fee2e2", color: ultimoEscaneo.startsWith("✅") ? "#166534" : "#991b1b", fontFamily: F_BODY }}>
                     {ultimoEscaneo}
                   </div>
                 )}
-                <button type="button" onClick={detenerScanner} className="w-full py-2 rounded-lg text-xs font-bold"
+                <button type="button" onClick={detenerScanner} className="w-full py-2 rounded-xl text-xs font-bold"
                   style={{ background: C.coral, color: "#FFF", fontFamily: F_BODY }}>
                   ⏹ DETENER CÁMARA
                 </button>
@@ -615,7 +627,7 @@
           <div className="flex gap-2 mb-4">
             <input style={{ ...estiloInput, flex: 1 }} value={dniManual} onChange={(e) => setDniManual(e.target.value)} placeholder="Buscar por DNI..."
               onKeyDown={(e) => e.key === "Enter" && buscarManual()} />
-            <button type="button" onClick={buscarManual} className="px-3 rounded-lg text-sm font-bold" style={{ background: C.teal, color: "#FFF", fontFamily: F_BODY }}>✓</button>
+            <button type="button" onClick={buscarManual} className="px-3 rounded-xl text-sm font-bold" style={{ background: C.teal, color: "#FFF", fontFamily: F_BODY }}>✓</button>
           </div>
 
           <div className="text-xs mb-2 flex items-center justify-between" style={{ fontFamily: F_BODY, color: C.muted }}>
@@ -634,7 +646,7 @@
                 {eq.jugadoras.map((j) => {
                   const verif = verificadas[j.ID_Jugadora];
                   return (
-                    <div key={j.ID_Jugadora} className="flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer"
+                    <div key={j.ID_Jugadora} className="flex items-center justify-between rounded-xl px-3 py-2 cursor-pointer"
                       style={{ background: verif ? "#dcfce7" : "#FFF", border: `1px solid ${verif ? "#16a34a44" : C.line}` }}
                       onClick={() => setVerificadas((prev) => ({ ...prev, [j.ID_Jugadora]: !prev[j.ID_Jugadora] }))} >
                       <div style={{ fontFamily: F_BODY }}>
@@ -651,7 +663,7 @@
 
           {/* Guardar asistencia */}
           {totalVerif > 0 && (
-            <button type="button" onClick={guardarAsistencia} disabled={guardando} className="w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 mt-2"
+            <button type="button" onClick={guardarAsistencia} disabled={guardando} className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 mt-2"
               style={{ background: C.teal, color: "#FFF", fontFamily: F_BODY, opacity: guardando ? 0.7 : 1 }}>
               {guardando ? <span className="girando">⏳</span> : "💾"} GUARDAR ASISTENCIA ({totalVerif})
             </button>
@@ -787,49 +799,63 @@
         }
       }
 
+      const idxTab = Math.max(0, tabsVisibles.findIndex((t) => t.key === tab));
+      const nTabs = Math.max(1, tabsVisibles.length);
       return (
-        <div className="min-h-screen flex justify-center" style={{ background: "#E5E1D6" }}>
-          <div className="w-full max-w-sm flex flex-col" style={{ background: C.paper, minHeight: "100vh" }}>
-            <div className="px-4 pt-5 pb-4 flex items-start justify-between" style={{ background: C.ink }}>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span>🛡️</span>
-                  <span className="text-[10px] tracking-[0.2em] uppercase" style={{ color: C.gold, fontFamily: F_BODY }}>Panel admin</span>
+        <div className="min-h-screen flex justify-center" style={{ background: C.paper }}>
+          <div className="w-full max-w-md flex flex-col" style={{ background: C.paper, minHeight: "100vh" }}>
+            {/* HERO */}
+            <div className="px-4 pt-5 pb-6 flex items-start justify-between relative overflow-hidden" style={{ background: "linear-gradient(135deg,#D62A7E 0%,#A91B60 45%,#4A0A2B 100%)" }}>
+              <div className="blob" style={{ width: 230, height: 230, background: "#FF7AB8", top: -90, right: -60 }} />
+              <div className="blob" style={{ width: 200, height: 200, background: "#6D28D9", bottom: -110, left: -40, animationDelay: "-6s" }} />
+              <div className="relative z-10 flex items-center gap-3">
+                <img src="icons/icon-192.png" alt="" className="rounded-2xl" style={{ width: 44, height: 44, border: "1px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.15)" }} />
+                <div>
+                  <div style={{ fontSize: 10.5, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(255,255,255,.8)", fontFamily: F_BODY, fontWeight: 700 }}>Panel admin</div>
+                  <h1 style={{ fontFamily: F_DISPLAY, fontWeight: 800, fontSize: 15, letterSpacing: ".06em", color: "#FFF", lineHeight: 1.2, margin: 0 }}>LIGA FEMENINA<br />DE MAXI HANDBALL</h1>
                 </div>
-                <h1 className="text-xl leading-tight" style={{ fontFamily: F_DISPLAY, fontWeight: 700, color: C.paper }}>LIGA FEMENINA<br />DE MAXI HANDBALL</h1>
               </div>
-              <button onClick={() => setConfigAbierta(true)} className="mt-1" style={{ color: C.paper, fontSize: 20 }}>⚙️</button>
+              <button onClick={() => setConfigAbierta(true)} aria-label="Conexión" className="relative z-10 glass press" style={{ background: "rgba(255,255,255,.16)", borderRadius: 999, padding: "8px 11px", border: "1px solid rgba(255,255,255,.3)", fontSize: 15 }}>⚙️</button>
             </div>
 
             {estadoConexion !== "ok" && (
-              <div className="px-4 py-2 text-center text-xs" style={{ background: "#FBEFD2", color: "#8A6300", fontFamily: F_BODY }}>
+              <div className="px-4 py-2.5 text-center text-xs" style={{ background: "#FEF3C7", color: "#92400E", fontFamily: F_BODY, fontWeight: 500 }}>
                 Modo demo: los cambios no se guardan en tu Sheet. Tocá ⚙️ para conectar.
               </div>
             )}
 
             {estadoConexion === "ok" && rol && (
-              <div className="px-4 py-1.5 text-center text-[10px]" style={{ background: C.teal, color: "#FFF", fontFamily: F_BODY }}>
-                🔑 {rolLabel[rol] || rol}
+              <div className="px-4 pt-3">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px]" style={{ background: "#DCFCE7", color: "#166534", fontFamily: F_BODY, fontWeight: 700, letterSpacing: ".04em" }}>
+                  <i style={{ width: 7, height: 7, borderRadius: "50%", background: C.teal, display: "inline-block" }} /> {(rolLabel[rol] || rol).toUpperCase()}
+                </span>
               </div>
             )}
 
-            <div className="flex px-4 pt-4 pb-3 gap-1 flex-wrap">
-              {tabsVisibles.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg" style={{ background: tab === t.key ? C.ink : "transparent", color: tab === t.key ? C.gold : C.muted, minWidth: tabsVisibles.length > 5 ? "18%" : "auto" }}>
-                  <span>{t.icon}</span>
-                  <span className="text-[10px]" style={{ fontFamily: F_BODY, fontWeight: 500 }}>{t.label}</span>
-                </button>
-              ))}
+            {/* TABS */}
+            <div className="px-4 pt-3 pb-2 sticky top-0 z-20 glass" style={{ background: "rgba(246,247,251,.88)" }}>
+              <div className="relative flex rounded-2xl p-1" style={{ background: "#FFF", border: `1px solid ${C.line}`, boxShadow: "0 6px 18px -10px rgba(15,23,42,.18)" }}>
+                <div style={{ position: "absolute", top: 4, bottom: 4, left: 4, width: `calc((100% - 8px) / ${nTabs})`, borderRadius: 12, background: GRAD, transform: `translateX(${idxTab * 100}%)`, transition: "transform .35s cubic-bezier(.5,1.4,.5,1)", boxShadow: "0 6px 14px -4px rgba(169,27,96,.55)" }} />
+                {tabsVisibles.map((t) => (
+                  <button key={t.key} onClick={() => setTab(t.key)} className="press relative flex-1 flex flex-col items-center gap-0.5 py-2" style={{ color: tab === t.key ? "#FFF" : C.muted, transition: "color .25s", zIndex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 15 }}>{t.icon}</span>
+                    <span style={{ fontFamily: F_BODY, fontSize: nTabs > 5 ? 9 : 10.5, fontWeight: 700 }}>{t.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex-1">
-              {tab === "resultados" && <VistaResultados partidos={partidos} equipos={equipos} jugadoras={jugadoras} cargando={cargando} onGuardar={(p, cb) => guardar("cargarResultado", p, cb)} />}
-              {tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarPartido", p, cb)} onEditar={(p) => guardar("editarPartido", p)} />}
-              {tab === "goleo" && <VistaGoleo partidos={partidos} jugadoras={jugadoras} equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarGol", p, cb)} />}
-              {tab === "control" && <VistaControl partidos={partidos} jugadoras={jugadoras} equipos={equipos} apiUrl={apiUrl} token={token} onToast={setToast} />}
-              {tab === "jugadoras" && <VistaJugadoras jugadoras={jugadoras} equipos={equipos} />}
-              {tab === "noticias" && <VistaNoticias cargando={cargando} onGuardar={(p, cb) => guardar("agregarNoticia", p, cb)} />}
-              {tab === "config" && <VistaConfig config={config} cargando={cargando} onGuardar={(p) => guardar("actualizarConfig", p, () => setConfig(p))} />}
+            {/* CONTENIDO */}
+            <div className="flex-1 px-3 pb-8 pt-2" key={tab}>
+              <div className="rounded-3xl pt-4 fade-up" style={{ background: "#FFF", border: `1px solid ${C.line}`, boxShadow: "0 14px 34px -18px rgba(15,23,42,.25)" }}>
+                {tab === "resultados" && <VistaResultados partidos={partidos} equipos={equipos} jugadoras={jugadoras} cargando={cargando} onGuardar={(p, cb) => guardar("cargarResultado", p, cb)} />}
+                {tab === "fixture" && <VistaFixture equipos={equipos} partidos={partidos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarPartido", p, cb)} onEditar={(p) => guardar("editarPartido", p)} />}
+                {tab === "goleo" && <VistaGoleo partidos={partidos} jugadoras={jugadoras} equipos={equipos} cargando={cargando} onGuardar={(p, cb) => guardar("agregarGol", p, cb)} />}
+                {tab === "control" && <VistaControl partidos={partidos} jugadoras={jugadoras} equipos={equipos} apiUrl={apiUrl} token={token} onToast={setToast} />}
+                {tab === "jugadoras" && <VistaJugadoras jugadoras={jugadoras} equipos={equipos} />}
+                {tab === "noticias" && <VistaNoticias cargando={cargando} onGuardar={(p, cb) => guardar("agregarNoticia", p, cb)} />}
+                {tab === "config" && <VistaConfig config={config} cargando={cargando} onGuardar={(p) => guardar("actualizarConfig", p, () => setConfig(p))} />}
+              </div>
             </div>
           </div>
 
