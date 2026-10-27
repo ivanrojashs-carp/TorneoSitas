@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <title>Liga Femenina de Maxi Handball</title>
   <link rel="manifest" href="manifest.json"/>
+  <meta name="format-detection" content="telephone=no"/>
   <meta name="theme-color" content="#A91B60"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -81,6 +82,7 @@ const TABS=[{key:"tabla",label:"Tabla",icon:"\u{1F3C6}"},{key:"fixture",label:"F
 
 // ============ HELPERS ============
 function jsonp(url){return new Promise((res,rej)=>{const cb="cb_"+Math.random().toString(36).slice(2);const s=document.createElement("script");window[cb]=d=>{res(d);delete window[cb];s.remove()};s.onerror=()=>{rej(new Error("API"));delete window[cb];s.remove()};s.src=url+(url.includes("?")?"&":"?")+"callback="+cb+"&_ts="+Date.now();document.body.appendChild(s)})}
+function minutosHora(h){const m=String(h||"").match(/(\d{1,2})\s*[:.;hH]\s*(\d{2})?/);return m?Number(m[1])*60+(Number(m[2])||0):99999}
 function fechaCorta(f){if(!f)return"";const s=String(f).slice(0,10).split("-");return s.length===3?s[2]+"/"+s[1]+"/"+s[0].slice(2):String(f).slice(0,10)}
 function equipoPorId(eq,id){return eq.find(e=>e.ID_Equipo===id)||{Nombre:id,Zona:""}}
 function fotoDrive(u){if(!u)return null;const m=String(u).match(/\/d\/([a-zA-Z0-9_-]+)/);return m?"https://lh3.googleusercontent.com/d/"+m[1]:u}
@@ -169,8 +171,8 @@ function TablaGrupo({tema,posiciones,onEquipoClick,isDark}){
   const t=useTheme();const z=TEMA[tema]||TEMA.Verde;
   const ac=isDark?z.acDark:z.ac;
   const maxP=Math.max(1,...posiciones.map(e=>e.pts));
-  const cols="22px minmax(0,1fr) 22px 22px 22px 22px 30px 34px";
-  const cel={textAlign:"center",fontSize:12.5};
+  const cols="18px minmax(0,1fr) 20px 20px 20px 20px 28px 28px";
+  const cel={textAlign:"center",fontSize:12};
   return(
     <div className="mb-6 fade-in">
       <div className="flex items-center gap-2 mb-2 px-1">
@@ -178,18 +180,18 @@ function TablaGrupo({tema,posiciones,onEquipoClick,isDark}){
         <span className="text-[11px] font-bold uppercase" style={{letterSpacing:".1em",color:t.text}}>{z.label}</span>
       </div>
       <div className="rounded-2xl overflow-hidden" style={{background:t.card,border:`1px solid ${t.border}`,boxShadow:`0 8px 24px -10px ${t.shadow}`}}>
-        <div style={{display:"grid",gridTemplateColumns:cols,gap:4,alignItems:"center",padding:"0 12px",height:36,borderBottom:`1px solid ${t.border}`,fontSize:10,fontWeight:700,letterSpacing:".07em",textTransform:"uppercase",color:t.textMut}}>
+        <div style={{display:"grid",gridTemplateColumns:cols,gap:3,alignItems:"center",padding:"0 10px",height:36,borderBottom:`1px solid ${t.border}`,fontSize:10,fontWeight:700,letterSpacing:".07em",textTransform:"uppercase",color:t.textMut}}>
           <span>#</span><span>Equipo</span><span style={cel}>PJ</span><span style={cel}>PG</span><span style={cel}>PE</span><span style={cel}>PP</span><span style={cel}>DG</span><span style={{textAlign:"right"}}>Pts</span>
         </div>
         {posiciones.map((eq,i)=>(
           <div key={eq.ID_Equipo} className="row-hover fade-in" onClick={()=>onEquipoClick&&onEquipoClick(eq)}
-            style={{position:"relative",display:"grid",gridTemplateColumns:cols,gap:4,alignItems:"center",padding:"10px 12px 12px",borderBottom:i<posiciones.length-1?`1px solid ${t.border}`:"none",cursor:onEquipoClick?"pointer":"default",animationDelay:`${i*60}ms`}}>
+            style={{position:"relative",display:"grid",gridTemplateColumns:cols,gap:3,alignItems:"center",padding:"10px 10px 12px",borderBottom:i<posiciones.length-1?`1px solid ${t.border}`:"none",cursor:onEquipoClick?"pointer":"default",animationDelay:`${i*60}ms`}}>
             {i===0&&<span style={{position:"absolute",left:0,top:10,bottom:10,width:3,borderRadius:"0 3px 3px 0",background:ac}}/>}
             <span style={{fontWeight:700,fontSize:13,color:i===0?ac:t.textMut}}>{i+1}</span>
             <div className="flex items-center gap-2" style={{minWidth:0}}>
-              <Shield eq={eq} size={30}/>
+              <Shield eq={eq} size={28}/>
               <div style={{minWidth:0}}>
-                <div style={{fontWeight:600,fontSize:13.5,color:t.text,lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eq.Nombre}</div>
+                <div style={{fontWeight:600,fontSize:12.5,color:t.text,lineHeight:1.15,wordBreak:"break-word"}}>{eq.Nombre}</div>
                 <div className="flex gap-1 mt-1">
                   {eq.racha.length===0&&<span style={{fontSize:10,color:t.textMut}}>—</span>}
                   {eq.racha.map((r,idx)=>(<span key={idx} title={r} style={{width:8,height:8,borderRadius:"50%",background:r==="G"?"#16A34A":r==="E"?"#F2B705":"#DC2626"}}/>))}
@@ -316,7 +318,7 @@ function VistaFixture({equipos,jugadoras,partidos,goles,config,isDark}){
               <span style={{width:8,height:8,borderRadius:99,background:isDark?z.acDark:z.ac}}/>
             </div>
             <div className="space-y-2.5">
-              {pf.filter(p=>p.Jornada===j).map((p,ix)=>{
+              {pf.filter(p=>p.Jornada===j).sort((a,b)=>String(a.Fecha).slice(0,10).localeCompare(String(b.Fecha).slice(0,10))||minutosHora(a.Hora)-minutosHora(b.Hora)).map((p,ix)=>{
                 const lo=equipoPorId(equipos,p.ID_EquipoLocal);const vi=equipoPorId(equipos,p.ID_EquipoVisitante);const mvp=p.Jugado==="SI"?bMvp(p.MVP_Partido):null;
                 const jug=p.Jugado==="SI";const hora=String(p.Hora||"");
                 return(
